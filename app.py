@@ -161,18 +161,7 @@ def varrer_mercado_ao_vivo():
 # ==========================================
 st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide")
 st.title("🌐 Terminal Quantitativo B3 (Live Sync)")
-
-# Botão movido para a TELA CENTRAL com destaque "Primary"
-btn_varredura = st.button("🔄 Iniciar Varredura (Atualizar Dados do Servidor)", type="primary", use_container_width=True)
-if btn_varredura:
-    varrer_mercado_ao_vivo.clear() # Limpa o cache e força novo download
-
-st.markdown("---") # Adiciona uma linha sutil para separar o título da futura tabela
-
 st.sidebar.header("🎛️ Painel de Controle")
-
-# --- ABA DE TENDÊNCIA ---
-# (O resto do seu código continua exatamente igual daqui para baixo...)
 
 # --- ABA DE TENDÊNCIA ---
 with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
@@ -203,28 +192,28 @@ with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
 # --- ABA DE MOMENTO ---
 with st.sidebar.expander("⚡ Filtros de Momento"):
     
-    usar_ifr40 = st.checkbox("🟢 Ligar Filtro IFR40", value=True)
+    usar_ifr40 = st.checkbox(" Filtro IFR40", value=True)
     if usar_ifr40:
         filtro_ifr40 = st.slider("IFR40 Mínimo (Força Longa)", 0, 100, 50)
         
     st.markdown("---")
-    usar_ifr3 = st.checkbox("🟢 Ligar Filtro IFR3", value=True)
+    usar_ifr3 = st.checkbox(" Filtro IFR3", value=True)
     if usar_ifr3:
         filtro_ifr3 = st.slider("IFR3 Máximo (Buscar Sobrevenda)", 0, 100, 100)
         
     st.markdown("---")
-    usar_estocastico = st.checkbox("🟢 Ligar Filtro Estocástico", value=True)
+    usar_estocastico = st.checkbox(" Filtro Estocástico", value=True)
     if usar_estocastico:
         filtro_estocastico = st.slider("Estocástico Lento Máximo", 0, 100, 100)
         
     st.markdown("---")
     st.markdown("**MACD vs Linha Zero (0)**")
     
-    usar_macd_linha = st.checkbox("🟢 Ligar Filtro MACD Linha")
+    usar_macd_linha = st.checkbox(" Filtro MACD Linha")
     if usar_macd_linha:
         dir_macd_linha = st.radio("A MACD Linha deve ser:", ["Maior que 0 (>)", "Menor que 0 (<)"], key="rad_macd_linha")
         
-    usar_macd_media = st.checkbox("🟢 Ligar Filtro MACD Média 36")
+    usar_macd_media = st.checkbox(" Filtro MACD Média 36")
     if usar_macd_media:
         dir_macd_media = st.radio("A Média 36 deve ser:", ["Maior que 0 (>)", "Menor que 0 (<)"], key="rad_macd_media")
 
@@ -250,8 +239,15 @@ botao_aplicar = st.sidebar.button("🚀 Aplicar Filtros", use_container_width=Tr
 # ==========================================
 # 4. EXECUÇÃO E FILTRAGEM (O GATILHO)
 # ==========================================
-if botao_aplicar:
-    with st.spinner("Analisando o mercado e aplicando os filtros..."):
+# O botão com o texto e estilo exatamente igual ao seu arquivo original
+btn_varredura = st.button("🚀 Executar Varredura Ao Vivo")
+
+if btn_varredura:
+    varrer_mercado_ao_vivo.clear() # Limpa a memória para forçar atualização da B3
+
+# O robô roda se clicar no botão principal OU no "Aplicar Filtros" da barra lateral
+if btn_varredura or botao_aplicar:
+    with st.spinner("Baixando dados da B3 pelo Yahoo Finance... Isso leva uns 15 segundos."):
         
         tabela_completa = varrer_mercado_ao_vivo()
         
@@ -259,6 +255,8 @@ if botao_aplicar:
             st.error("Erro ao puxar dados da internet.")
         else:
             t = tabela_completa.copy()
+
+            # (A partir daqui, os seus filtros numéricos e de momento continuam iguais...)
 
             # 1. Filtros Numéricos Base (Liquidez, Alpha e Preço)
             t = t[
