@@ -4,11 +4,10 @@ import numpy as np
 import yfinance as yf
 
 # ==========================================
-# 1. FUNÇÕES MATEMÁTICAS (CORRIGIDAS)
+# 1. FUNÇÕES MATEMÁTICAS
 # ==========================================
 def calcular_ifr(series, periodos):
     delta = series.diff()
-    # Usa Média Exponencial com o Alpha de Wilder (Padrão Profissional)
     ganho = delta.where(delta > 0, 0).ewm(alpha=1/periodos, adjust=False).mean()
     perda = (-delta.where(delta < 0, 0)).ewm(alpha=1/periodos, adjust=False).mean()
     
@@ -17,7 +16,7 @@ def calcular_ifr(series, periodos):
     return ifr.fillna(100)
 
 # ==========================================
-# 2. MOTOR QUANTITATIVO (AGORA NA NUVEM!)
+# 2. MOTOR QUANTITATIVO (NUVEM)
 # ==========================================
 @st.cache_data(ttl="1d")
 def varrer_mercado_ao_vivo():
@@ -51,12 +50,11 @@ def varrer_mercado_ao_vivo():
         "VIVT3", "VLID3", "VSTE3", "VULC3", "VVEO3", "WEB311", "WEGE3", "WEST3", "WHRL4", "WIZC3",
         "XPBR31", "YDUQ3",
     ]
-
     tickers_sa = [t + ".SA" for t in tickers]
     benchmarks = ["BOVA11.SA", "IVVB11.SA"]
     lista_completa = tickers_sa + benchmarks
 
-    dados_brutos = yf.download(lista_completa, period="2y", progress=False)
+    dados_brutos = yf.download(lista_completa, period="5y", progress=False)
 
     lista_rastreador = []
     retorno_12m_ibov = 0
@@ -78,7 +76,6 @@ def varrer_mercado_ao_vivo():
 
     for t_sa in tickers_sa:
         try:
-            # CORREÇÃO: ffill() para tratar dias sem negócios
             df = pd.DataFrame({
                 'Fechamento': dados_brutos['Close'][t_sa],
                 'Máximo': dados_brutos['High'][t_sa],
@@ -86,7 +83,8 @@ def varrer_mercado_ao_vivo():
                 'Quantidade': dados_brutos['Volume'][t_sa]
             }).ffill().dropna()
 
-            if len(df) < 200: continue 
+            # CORREÇÃO 1: Proteção absoluta contra IPOs recentes (evita erro de NaN na Max_52W)
+            if len(df) < 252: continue 
             
             ticker_puro = t_sa.replace(".SA", "")
             
@@ -95,9 +93,9 @@ def varrer_mercado_ao_vivo():
             df['MM80'] = df['Fechamento'].rolling(window=80).mean()
             df['MM100'] = df['Fechamento'].rolling(window=100).mean()
             df['MM150'] = df['Fechamento'].rolling(window=150).mean()
-            df['QtdMM20'] = df['Quantidade'].rolling(window=20).mean()
-            df['QtdMM60'] = df['Quantidade'].rolling(window=60).mean()
-            df['QtdMM100'] = df['Quantidade'].rolling(window=100).mean()
+            df['VolMedio_20d'] = df['Quantidade'].rolling(window=20).mean()
+            df['VolMedio_60d'] = df['Quantidade'].rolling(window=60).mean()
+            df['VolMedio_100d'] = df['Quantidade'].rolling(window=100).mean()
             df['IFR40'] = calcular_ifr(df['Fechamento'], periodos=40)
             df['IFR3'] = calcular_ifr(df['Fechamento'], periodos=3)
             df['Max_52W'] = df['Máximo'].rolling(window=252).max()
@@ -125,9 +123,10 @@ def varrer_mercado_ao_vivo():
             ano_atual = data_atual.year
             df_ano_atual = df[df.index.year == ano_atual]
             retorno_ano = (preco_atual / df_ano_atual.iloc[0]['Fechamento']) - 1 if not df_ano_atual.empty else 0
-                
-            fr_ibov = ((1 + retorno_12m) / (1 + retorno_12m_ibov)) - 1 if retorno_12m_ibov != 0 else 0
-            fr_ivvb = ((1 + retorno_12m) / (1 + retorno_12m_ivvb)) - 1 if retorno_12m_ivvb != 0 else 0
+            
+            # CORREÇÃO 3: Blindagem de divisão por zero ajustada (-1 significa queda de 100%)
+            fr_ibov = ((1 + retorno_12m) / (1 + retorno_12m_ibov)) - 1 if retorno_12m_ibov != -1 else 0
+            fr_ivvb = ((1 + retorno_12m) / (1 + retorno_12m_ivvb)) - 1 if retorno_12m_ivvb != -1 else 0
 
             lista_rastreador.append({
                 'Ticker': ticker_puro, 'Fechamento': preco_atual, 'Retorno_Ano': retorno_ano,
@@ -136,8 +135,8 @@ def varrer_mercado_ao_vivo():
                 'MACD_Linha_10_3': hoje['MACD_Linha'], 'MACD_Media_36': hoje['MACD_Media_36'],
                 'Max_52W': hoje['Max_52W'], 'Min_52W': hoje['Min_52W'], 'Topo_Historico': hoje['Topo_Historico'],
                 'MM20': hoje['MM20'], 'MM50': hoje['MM50'], 'MM80': hoje['MM80'],
-                'MM100': hoje['MM100'], 'MM150': hoje['MM150'], 'Negocios_Hoje': hoje['Quantidade'],
-                'QtdMM20': hoje['QtdMM20'], 'QtdMM60': hoje['QtdMM60'], 'QtdMM100': hoje['QtdMM100']
+                'MM100': hoje['MM100'], 'MM150': hoje['MM150'], 'Volume_Acoes': hoje['Quantidade'],
+                'VolMedio_20d': hoje['VolMedio_20d'], 'VolMedio_60d': hoje['VolMedio_60d'], 'VolMedio_100d': hoje['VolMedio_100d']
             })
         except Exception as e:
             pass
@@ -147,17 +146,14 @@ def varrer_mercado_ao_vivo():
 # ==========================================
 # 3. INTERFACE DE USUÁRIO E FILTROS
 # ==========================================
-# ADICIONADO: initial_sidebar_state="expanded" para forçar o menu a nascer aberto
 st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide", initial_sidebar_state="expanded")
 
-# CSS CORRIGIDO: Agora a largura fixa só se aplica quando o painel está aberto!
 st.markdown("""
     <style>
            .block-container { padding-top: 1.5rem; padding-bottom: 0rem; }
            div[data-testid="stExpanderDetails"] { padding-top: 0px; padding-bottom: 0.5rem; }
            label[data-baseweb="checkbox"] { margin-bottom: -8px; }
            
-           /* Deixa o filtro levemente maior (320px) APENAS quando está aberto */
            [data-testid="stSidebar"][aria-expanded="true"] {
                min-width: 320px !important;
                max-width: 320px !important;
@@ -166,20 +162,14 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 🔐 SISTEMA DE LOGIN (A PORTA DE ENTRADA)
+# 🔐 SISTEMA DE LOGIN
 # ==========================================
-
-# ==========================================
-# 🔐 SISTEMA DE LOGIN (A PORTA DE ENTRADA)
-# ==========================================
-# 1. Cria a "memória" de login (VOCÊ TINHA ESQUECIDO ESTA PARTE)
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
-# 2. Se não estiver logado, cria as colunas e mostra a tela de senha
 if not st.session_state['autenticado']:
     st.markdown("<br><br><br>", unsafe_allow_html=True) 
-    col1, col2, col3 = st.columns([1, 1, 1]) # CRIA AS 3 COLUNAS (Faltava isto!)
+    col1, col2, col3 = st.columns([1, 1, 1]) 
     
     with col2:
         st.markdown("<h2 style='text-align: center;'>🔐 Acesso Restrito</h2>", unsafe_allow_html=True)
@@ -187,40 +177,27 @@ if not st.session_state['autenticado']:
         senha = st.text_input("Senha", type="password")
         btn_login = st.button("Entrar no Terminal", type="primary", use_container_width=True)
         
-        # A sua nova "Lista de Convidados"
-        usuarios_permitidos = {
-            "Matheus": "robotrade2026",
-            "Mauro": "traderpai7$",
-            "Visitante": "restrito"
-        }
+        usuarios_permitidos = st.secrets["senhas"]
         
         if btn_login:
             if usuario in usuarios_permitidos and usuarios_permitidos[usuario] == senha: 
                 st.session_state['autenticado'] = True
-                st.rerun() # Recarrega a página agora logado
+                st.rerun() 
             else:
                 st.error("❌ Usuário ou senha incorretos.")
                 
-    st.stop() # ESTE É O SEGREDO: O código para aqui se não estiver logado!
-
+    st.stop()
 
 # ==========================================
-# SE PASSOU PELO LOGIN, MOSTRA O SITE NORMAL
+# PAINEL DE CONTROLE (PÓS-LOGIN)
 # ==========================================
 st.title("🌐 Terminal Quantitativo B3")
 
-# (O resto do seu código com o botão de varredura e menu lateral continua aqui para baixo...)
-
-# Botão limpo, compacto e com função clear vinculada a ele
 btn_varredura = st.button("🚀 Executar Varredura Ao Vivo (Forçar Atualização de Dados)")
-
-# (O resto do seu código continua exatamente igual daqui para baixo...)
-
 if btn_varredura:
     varrer_mercado_ao_vivo.clear()
 
 st.markdown("---")
-
 st.sidebar.header("🎛️ Painel de Controle")
 
 with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
@@ -278,13 +255,14 @@ with st.sidebar.expander("🏆 Filtros de Performance"):
     retorno_12m_minimo = st.number_input("Retorno 12M Mínimo (%)", value=-100.0, step=10.0)
 
 with st.sidebar.expander("💰 Filtros de Liquidez"):
-    filtro_negocios = st.number_input("Negócios Hoje (Mínimo)", value=100, step=100)
-    filtro_qtdmm20 = st.number_input("Média de Negócios 20d (Mínimo)", value=0, step=100)
-    volume_crescente = st.checkbox("Liquidez Crescente (QtdMM20 > QtdMM60)", value=False)
+    # CORREÇÃO 2: Atualização de Nomenclatura para refletir Volume de Ações reais
+    filtro_negocios = st.number_input("Volume de Ações Hoje (Mínimo)", value=10000, step=10000)
+    filtro_qtdmm20 = st.number_input("Volume Médio 20d (Mínimo)", value=0, step=10000)
+    volume_crescente = st.checkbox("Liquidez Crescente (Vol. 20d > Vol. 60d)", value=False)
 
 st.sidebar.markdown("---")
 ordenar_por = st.sidebar.selectbox("Ordenar Resultados por:", 
-    ["FR_IBOV", "Retorno_12M", "IFR40", "MACD_Linha_10_3", "Negocios_Hoje"])
+    ["FR_IBOV", "Retorno_12M", "IFR40", "MACD_Linha_10_3", "Volume_Acoes"])
 
 # ==========================================
 # 4. EXECUÇÃO E APRESENTAÇÃO
@@ -299,8 +277,8 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
 
         t = t[
             (t['Fechamento'] >= preco_minimo) &
-            (t['Negocios_Hoje'] >= filtro_negocios) &
-            (t['QtdMM20'] >= filtro_qtdmm20) &
+            (t['Volume_Acoes'] >= filtro_negocios) &
+            (t['VolMedio_20d'] >= filtro_qtdmm20) &
             (t['Retorno_12M'] >= (retorno_12m_minimo / 100)) &
             (t['FR_IBOV'] >= (fr_ibov_minimo / 100)) &
             (t['FR_IVVB'] >= (fr_ivvb_minimo / 100))
@@ -337,10 +315,21 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
             if tend_mm80_150: t = t[t['MM80'] < t['MM150']]
             if rompimento_52w: t = t[t['Fechamento'] <= (t['Min_52W'] * 1.05)]
 
-        if volume_crescente: t = t[t['QtdMM20'] > t['QtdMM60']]
+        if volume_crescente: t = t[t['VolMedio_20d'] > t['VolMedio_60d']]
 
         t = t.sort_values(by=ordenar_por, ascending=False).reset_index(drop=True)
 
+        # REORGANIZAÇÃO LOGÍSTICA DAS COLUNAS
+        ordem_colunas = [
+            'Ticker', 'Fechamento', 'Topo_Historico', 'Max_52W', 'Min_52W', 
+            'Retorno_Ano', 'Retorno_12M', 'FR_IBOV', 'FR_IVVB', 
+            'IFR3', 'IFR40', 'Estocastico_Lento', 'MACD_Linha_10_3', 'MACD_Media_36', 
+            'MM20', 'MM50', 'MM80', 'MM100', 'MM150', 
+            'Volume_Acoes', 'VolMedio_20d', 'VolMedio_60d', 'VolMedio_100d'
+        ]
+        t = t[ordem_colunas] 
+
+        # FORMATAÇÃO VISUAL 
         colunas_dinheiro = ['Fechamento', 'Max_52W', 'Min_52W', 'Topo_Historico', 'MM20', 'MM50', 'MM80', 'MM100', 'MM150']
         for col in colunas_dinheiro: t[col] = t[col].apply(lambda x: f"R$ {x:.2f}")
         
@@ -353,17 +342,11 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
         colunas_2dec = ['IFR3', 'IFR40', 'Estocastico_Lento']
         for col in colunas_2dec: t[col] = t[col].apply(lambda x: f"{x:.2f}")
 
-        colunas_int = ['Negocios_Hoje', 'QtdMM20', 'QtdMM60', 'QtdMM100']
+        colunas_int = ['Volume_Acoes', 'VolMedio_20d', 'VolMedio_60d', 'VolMedio_100d']
         for col in colunas_int: t[col] = t[col].apply(lambda x: f"{x:,.0f}".replace(',', '.'))
 
-       # ==========================================
-        # 5. VISUALIZAÇÃO FOCADA (CLEAN UI)
-        # ==========================================
-        
-        # A clássica barra verde de sucesso voltou!
+        # VISUALIZAÇÃO FOCADA (CLEAN UI)
         st.success(f"Sincronizado! {len(t)} ações passaram nos filtros.")
-
-        # Tabela com altura máxima dominando a tela
         st.dataframe(t, use_container_width=True, height=750)
 
 
