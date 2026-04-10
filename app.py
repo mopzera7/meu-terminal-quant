@@ -2,77 +2,69 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
-from datetime import datetime, timedelta
 
 # ==========================================
-# 1. FUNÇÕES MATEMÁTICAS
+# 1. FUNÇÕES MATEMÁTICAS (CORRIGIDAS)
 # ==========================================
 def calcular_ifr(series, periodos):
     delta = series.diff()
-    ganho = (delta.where(delta > 0, 0)).rolling(window=periodos).mean()
-    perda = (-delta.where(delta < 0, 0)).rolling(window=periodos).mean()
+    # Usa Média Exponencial com o Alpha de Wilder (Padrão Profissional)
+    ganho = delta.where(delta > 0, 0).ewm(alpha=1/periodos, adjust=False).mean()
+    perda = (-delta.where(delta < 0, 0)).ewm(alpha=1/periodos, adjust=False).mean()
+    
     rs = ganho / perda.replace(0, np.nan)
     ifr = 100 - (100 / (1 + rs))
-    ifr = ifr.fillna(100)
-    ifr = ifr.where((ganho != 0) | (perda != 0), 50)
-    return ifr
+    return ifr.fillna(100)
 
 # ==========================================
 # 2. MOTOR QUANTITATIVO (AGORA NA NUVEM!)
 # ==========================================
-# MÁGICA: O comando ttl="1d" diz para o robô baixar os dados só 1 vez por dia. 
-# Ele salva na memória. No dia seguinte, ele baixa os novos dados sozinho!
 @st.cache_data(ttl="1d")
 def varrer_mercado_ao_vivo():
-    # Lista atualizada 
     tickers = [
         "AALR3", "ABCB4", "ABEV3", "AERI3", "AGRO3", "AGXY3", "ALLD3", "ALOS3", "ALPA4", "ALPK3",
-    "ALUP11", "AMAR3", "AMBP3", "AMER3", "AMOB3", "ANIM3", "ARML3", "ASAI3", "AURA33", "AURE3",
-    "AXIA3", "AXIA6", "AXIA7", "AZEV3", "AZEV4", "AZUL4", "AZZA3", "B3SA3", "BBAS3", "BBDC3",
-    "BBDC4", "BBSE3", "BEEF3", "BEES3", "BEES4", "BHIA3", "BIOM3", "BLAU3", "BMEB4", "BMGB4",
-    "BMOB3", "BOBR4", "BPAC11", "BPAN4", "BRAP3", "BRAP4", "BRAV3", "BRBI11", "BRKM5", "BRSR3",
-    "BRSR6", "CAMB3", "CAML3", "CASH3", "CBAV3", "CEAB3", "CGRA4", "CMIG3", "CMIG4", "CMIN3",
-    "COCE5", "COGN3", "CPFE3", "CPLE3", "CSAN3", "CSED3", "CSMG3", "CSNA3", "CSUD3", "CURY3",
-    "CVCB3", "CXSE3", "CYRE3", "DASA3", "DESK3", "DEXP3", "DIRR3", "DIVO11", "DMVF3", "DOTZ3",
-    "DXCO3", "EALT4", "ECOR3", "EGIE3", "EMBR3", "ENEV3", "ENGI11", "ENJU3", "EQTL3", "ESPA3",
-    "ETER3", "EUCA4", "EVEN3", "EZTC3", "FESA4", "FHER3", "FIQE3", "FLRY3", "FRAS3", "GFSA3",
-    "GGBR3", "GGBR4", "GGPS3", "GMAT3", "GOAU3", "GOAU4", "GOLD11", "GRND3", "GUAR3", "HAGA4",
-    "HAPV3", "HBOR3", "HBRE3", "HBSA3", "HYPE3", "IFCM3", "IGTI11", "IGTI3", "INEP3", "INEP4",
-    "INTB3", "IRBR3", "ISAE4", "ITSA3", "ITSA4", "ITUB3", "ITUB4", "JALL3", "JBSS32", "JHSF3",
-    "JSLG3", "KEPL3", "KLBN11", "KLBN3", "KLBN4", "LAND3", "LAVV3", "LEVE3", "LIGT3", "LJQQ3",
-    "LOGG3", "LOGN3", "LPSB3", "LREN3", "LUPA3", "LWSA3", "MATD3", "MBRF3", "MDIA3", "MDNE3",
-    "MEAL3", "MELK3", "MGLU3", "MILS3", "MLAS3", "MOTV3", "MOVI3", "MRVE3", "MTRE3", "MULT3",
-    "MYPK3", "NDIV11", "NEOE3", "NGRD3", "NSDV11", "ODPV3", "OFSA3", "OIBR3", "OIBR4", "ONCO3",
-    "OPCT3", "ORVR3", "PCAR3", "PDGR3", "PDTC3", "PETR3", "PETR4", "PETZ3", "PFRM3", "PGMN3",
-    "PINE4", "PLPL3", "PMAM3", "PNVL3", "POMO3", "POMO4", "PORT3", "POSI3", "PRIO3", "PRNR3",
-    "PSSA3", "PTBL3", "PTNT4", "QUAL3", "RADL3", "RAIL3", "RAIZ4", "RANI3", "RAPT4", "RCSL3",
-    "RCSL4", "RDOR3", "RECV3", "RENT3", "RIAA3", "RNEW11", "RNEW3", "ROMI3", "RSID3", "SANB11",
-    "SANB3", "SANB4", "SAPR11", "SAPR3", "SAPR4", "SBFG3", "SBSP3", "SCAR3", "SEER3", "SEQL3",
-    "SHOW3", "SHUL4", "SIMH3", "SLCE3", "SMFT3", "SMTO3", "SOJA3", "SRNA3", "SUZB3", "SYNE3",
-    "TAEE11", "TAEE3", "TAEE4", "TASA3", "TASA4", "TCSA3", "TECN3", "TEND3", "TFCO4", "TGMA3",
-    "TIMS3", "TOTS3", "TPIS3", "TRAD3", "TRIS3", "TTEN3", "TUPY3", "UCAS3", "UGPA3", "UNIP6",
-    "USIM3", "USIM5", "USTK11", "VALE3", "VAMO3", "VBBR3", "VGIA11", "VITT3", "VIVA3", "VIVR3",
-    "VIVT3", "VLID3", "VSTE3", "VULC3", "VVEO3", "WEB311", "WEGE3", "WEST3", "WHRL4", "WIZC3",
-    "XPBR31", "YDUQ3",
+        "ALUP11", "AMAR3", "AMBP3", "AMER3", "AMOB3", "ANIM3", "ARML3", "ASAI3", "AURA33", "AURE3",
+        "AXIA3", "AXIA6", "AXIA7", "AZEV3", "AZEV4", "AZUL4", "AZZA3", "B3SA3", "BBAS3", "BBDC3",
+        "BBDC4", "BBSE3", "BEEF3", "BEES3", "BEES4", "BHIA3", "BIOM3", "BLAU3", "BMEB4", "BMGB4",
+        "BMOB3", "BOBR4", "BPAC11", "BPAN4", "BRAP3", "BRAP4", "BRAV3", "BRBI11", "BRKM5", "BRSR3",
+        "BRSR6", "CAMB3", "CAML3", "CASH3", "CBAV3", "CEAB3", "CGRA4", "CMIG3", "CMIG4", "CMIN3",
+        "COCE5", "COGN3", "CPFE3", "CPLE3", "CSAN3", "CSED3", "CSMG3", "CSNA3", "CSUD3", "CURY3",
+        "CVCB3", "CXSE3", "CYRE3", "DASA3", "DESK3", "DEXP3", "DIRR3", "DIVO11", "DMVF3", "DOTZ3",
+        "DXCO3", "EALT4", "ECOR3", "EGIE3", "EMBR3", "ENEV3", "ENGI11", "ENJU3", "EQTL3", "ESPA3",
+        "ETER3", "EUCA4", "EVEN3", "EZTC3", "FESA4", "FHER3", "FIQE3", "FLRY3", "FRAS3", "GFSA3",
+        "GGBR3", "GGBR4", "GGPS3", "GMAT3", "GOAU3", "GOAU4", "GOLD11", "GRND3", "GUAR3", "HAGA4",
+        "HAPV3", "HBOR3", "HBRE3", "HBSA3", "HYPE3", "IFCM3", "IGTI11", "IGTI3", "INEP3", "INEP4",
+        "INTB3", "IRBR3", "ISAE4", "ITSA3", "ITSA4", "ITUB3", "ITUB4", "JALL3", "JBSS32", "JHSF3",
+        "JSLG3", "KEPL3", "KLBN11", "KLBN3", "KLBN4", "LAND3", "LAVV3", "LEVE3", "LIGT3", "LJQQ3",
+        "LOGG3", "LOGN3", "LPSB3", "LREN3", "LUPA3", "LWSA3", "MATD3", "MBRF3", "MDIA3", "MDNE3",
+        "MEAL3", "MELK3", "MGLU3", "MILS3", "MLAS3", "MOTV3", "MOVI3", "MRVE3", "MTRE3", "MULT3",
+        "MYPK3", "NDIV11", "NEOE3", "NGRD3", "NSDV11", "ODPV3", "OFSA3", "OIBR3", "OIBR4", "ONCO3",
+        "OPCT3", "ORVR3", "PCAR3", "PDGR3", "PDTC3", "PETR3", "PETR4", "PETZ3", "PFRM3", "PGMN3",
+        "PINE4", "PLPL3", "PMAM3", "PNVL3", "POMO3", "POMO4", "PORT3", "POSI3", "PRIO3", "PRNR3",
+        "PSSA3", "PTBL3", "PTNT4", "QUAL3", "RADL3", "RAIL3", "RAIZ4", "RANI3", "RAPT4", "RCSL3",
+        "RCSL4", "RDOR3", "RECV3", "RENT3", "RIAA3", "RNEW11", "RNEW3", "ROMI3", "RSID3", "SANB11",
+        "SANB3", "SANB4", "SAPR11", "SAPR3", "SAPR4", "SBFG3", "SBSP3", "SCAR3", "SEER3", "SEQL3",
+        "SHOW3", "SHUL4", "SIMH3", "SLCE3", "SMFT3", "SMTO3", "SOJA3", "SRNA3", "SUZB3", "SYNE3",
+        "TAEE11", "TAEE3", "TAEE4", "TASA3", "TASA4", "TCSA3", "TECN3", "TEND3", "TFCO4", "TGMA3",
+        "TIMS3", "TOTS3", "TPIS3", "TRAD3", "TRIS3", "TTEN3", "TUPY3", "UCAS3", "UGPA3", "UNIP6",
+        "USIM3", "USIM5", "USTK11", "VALE3", "VAMO3", "VBBR3", "VGIA11", "VITT3", "VIVA3", "VIVR3",
+        "VIVT3", "VLID3", "VSTE3", "VULC3", "VVEO3", "WEB311", "WEGE3", "WEST3", "WHRL4", "WIZC3",
+        "XPBR31", "YDUQ3",
     ]
 
-    
-    # O Yahoo Finance exige o sufixo ".SA" para ações brasileiras
     tickers_sa = [t + ".SA" for t in tickers]
     benchmarks = ["BOVA11.SA", "IVVB11.SA"]
     lista_completa = tickers_sa + benchmarks
 
-    # O robô vai na internet e baixa 2 anos de histórico de TODAS as ações de uma vez
     dados_brutos = yf.download(lista_completa, period="2y", progress=False)
 
     lista_rastreador = []
     retorno_12m_ibov = 0
     retorno_12m_ivvb = 0
 
-    # 1. Calculando os Benchmarks primeiro
     for bench in benchmarks:
         try:
-            df_b = pd.DataFrame({'Fechamento': dados_brutos['Close'][bench]}).dropna()
+            df_b = pd.DataFrame({'Fechamento': dados_brutos['Close'][bench]}).ffill().dropna()
             if len(df_b) > 252:
                 data_atual = df_b.index[-1]
                 data_12m_atras = data_atual - pd.Timedelta(days=365)
@@ -84,22 +76,20 @@ def varrer_mercado_ao_vivo():
                     if 'IVVB' in bench: retorno_12m_ivvb = ret_12m
         except: pass
 
-    # 2. Calculando as Ações
     for t_sa in tickers_sa:
         try:
-            # Extraindo a ação específica do pacote que veio da internet
+            # CORREÇÃO: ffill() adicionado para lidar com dias sem volume no Yahoo Finance
             df = pd.DataFrame({
                 'Fechamento': dados_brutos['Close'][t_sa],
                 'Máximo': dados_brutos['High'][t_sa],
                 'Mínimo': dados_brutos['Low'][t_sa],
                 'Quantidade': dados_brutos['Volume'][t_sa]
-            }).dropna()
+            }).ffill().dropna()
 
-            if len(df) < 200: continue # Pula ações muito novas
+            if len(df) < 200: continue 
             
             ticker_puro = t_sa.replace(".SA", "")
             
-            # Cálculo dos Indicadores (Exatamente como era no Excel/Colab)
             df['MM20'] = df['Fechamento'].rolling(window=20).mean()
             df['MM50'] = df['Fechamento'].rolling(window=50).mean()
             df['MM80'] = df['Fechamento'].rolling(window=80).mean()
@@ -128,16 +118,13 @@ def varrer_mercado_ao_vivo():
             data_atual = df.index[-1]
             preco_atual = hoje['Fechamento']
             
-            # Retornos de Calendário
             data_12m_atras = data_atual - pd.Timedelta(days=365)
             df_passado = df[df.index <= data_12m_atras]
-            if not df_passado.empty: retorno_12m = (preco_atual / df_passado.iloc[-1]['Fechamento']) - 1
-            else: retorno_12m = 0
+            retorno_12m = (preco_atual / df_passado.iloc[-1]['Fechamento']) - 1 if not df_passado.empty else 0
             
             ano_atual = data_atual.year
             df_ano_atual = df[df.index.year == ano_atual]
-            if not df_ano_atual.empty: retorno_ano = (preco_atual / df_ano_atual.iloc[0]['Fechamento']) - 1
-            else: retorno_ano = 0
+            retorno_ano = (preco_atual / df_ano_atual.iloc[0]['Fechamento']) - 1 if not df_ano_atual.empty else 0
                 
             fr_ibov = ((1 + retorno_12m) / (1 + retorno_12m_ibov)) - 1 if retorno_12m_ibov != 0 else 0
             fr_ivvb = ((1 + retorno_12m) / (1 + retorno_12m_ivvb)) - 1 if retorno_12m_ivvb != 0 else 0
@@ -158,18 +145,16 @@ def varrer_mercado_ao_vivo():
     return pd.DataFrame(lista_rastreador)
 
 # ==========================================
-# 3. INTERFACE DE USUÁRIO (FRONT-END)
+# 3. INTERFACE DE USUÁRIO E FILTROS
 # ==========================================
 st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide")
 st.title("🌐 Terminal Quantitativo B3 (Live Sync)")
+
 st.sidebar.header("🎛️ Painel de Controle")
 
-# --- ABA DE TENDÊNCIA ---
 with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
     preco_minimo = st.number_input("Preço Mínimo (R$)", value=2.00, step=0.50)
-    
     st.markdown("---")
-    # A Chave Mestra de Direção
     direcao_tendencia = st.radio("Selecione a Direção Buscada:", ["Alta (>)", "Baixa (<)"], horizontal=True)
     is_alta = (direcao_tendencia == "Alta (>)")
     simbolo = ">" if is_alta else "<"
@@ -191,9 +176,7 @@ with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
     texto_52w = "Próxima à Máxima de 52W (Até 5%)" if is_alta else "Próxima à Mínima de 52W (Até 5%)"
     rompimento_52w = st.checkbox(texto_52w, value=False)
 
-# --- ABA DE MOMENTO ---
 with st.sidebar.expander("⚡ Filtros de Momento"):
-    
     usar_ifr40 = st.checkbox(" Filtro IFR40", value=True)
     if usar_ifr40:
         filtro_ifr40 = st.slider("IFR40 Mínimo (Força Longa)", 0, 100, 50)
@@ -210,7 +193,6 @@ with st.sidebar.expander("⚡ Filtros de Momento"):
         
     st.markdown("---")
     st.markdown("**MACD vs Linha Zero (0)**")
-    
     usar_macd_linha = st.checkbox(" Filtro MACD Linha")
     if usar_macd_linha:
         dir_macd_linha = st.radio("A MACD Linha deve ser:", ["Maior que 0 (>)", "Menor que 0 (<)"], key="rad_macd_linha")
@@ -219,13 +201,11 @@ with st.sidebar.expander("⚡ Filtros de Momento"):
     if usar_macd_media:
         dir_macd_media = st.radio("A Média 36 deve ser:", ["Maior que 0 (>)", "Menor que 0 (<)"], key="rad_macd_media")
 
-# --- ABA DE PERFORMANCE ---
 with st.sidebar.expander("🏆 Filtros de Performance"):
     fr_ibov_minimo = st.number_input("FR_IBOV Mínimo (%)", value=0.0, step=5.0)
     fr_ivvb_minimo = st.number_input("FR_IVVB Mínimo (%)", value=-100.0, step=5.0)
     retorno_12m_minimo = st.number_input("Retorno 12M Mínimo (%)", value=-100.0, step=10.0)
 
-# --- ABA DE LIQUIDEZ ---
 with st.sidebar.expander("💰 Filtros de Liquidez"):
     filtro_negocios = st.number_input("Negócios Hoje (Mínimo)", value=100, step=100)
     filtro_qtdmm20 = st.number_input("Média de Negócios 20d (Mínimo)", value=0, step=100)
@@ -235,109 +215,84 @@ st.sidebar.markdown("---")
 ordenar_por = st.sidebar.selectbox("Ordenar Resultados por:", 
     ["FR_IBOV", "Retorno_12M", "IFR40", "MACD_Linha_10_3", "Negocios_Hoje"])
 
-# Botão principal reposicionado para o final do menu lateral
-botao_aplicar = st.sidebar.button("🚀 Aplicar Filtros", use_container_width=True)
-
 # ==========================================
-# 4. EXECUÇÃO E FILTRAGEM (O GATILHO)
+# 4. EXECUÇÃO E APRESENTAÇÃO (GATILHO REATIVO)
 # ==========================================
 
-# O botão com o texto e estilo exatamente igual ao seu arquivo original
-btn_varredura = st.button("🚀 Executar Varredura Ao Vivo")
+btn_varredura = st.button("🚀 Executar Varredura Ao Vivo (Forçar Atualização de Dados)")
 
 if btn_varredura:
-    varrer_mercado_ao_vivo.clear() # Limpa a memória para forçar atualização da B3
+    varrer_mercado_ao_vivo.clear() # Limpa a memória para baixar dados frescos
 
-# O robô roda se clicar no botão principal OU no "Aplicar Filtros" da barra lateral
-if btn_varredura or botao_aplicar:
-    with st.spinner("Baixando dados da B3 pelo Yahoo Finance... Isso leva uns 15 segundos."):
+with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
+    tabela_completa = varrer_mercado_ao_vivo()
+    
+    if tabela_completa.empty:
+        st.error("Erro ao puxar dados da internet. Clique no botão de Varredura acima.")
+    else:
+        t = tabela_completa.copy()
+
+        t = t[
+            (t['Fechamento'] >= preco_minimo) &
+            (t['Negocios_Hoje'] >= filtro_negocios) &
+            (t['QtdMM20'] >= filtro_qtdmm20) &
+            (t['Retorno_12M'] >= (retorno_12m_minimo / 100)) &
+            (t['FR_IBOV'] >= (fr_ibov_minimo / 100)) &
+            (t['FR_IVVB'] >= (fr_ivvb_minimo / 100))
+        ]
+
+        if usar_ifr40: t = t[t['IFR40'] >= filtro_ifr40]
+        if usar_ifr3: t = t[t['IFR3'] <= filtro_ifr3]
+        if usar_estocastico: t = t[t['Estocastico_Lento'] <= filtro_estocastico]
+        if usar_macd_linha:
+            t = t[t['MACD_Linha_10_3'] > 0] if dir_macd_linha == "Maior que 0 (>)" else t[t['MACD_Linha_10_3'] < 0]
+        if usar_macd_media:
+            t = t[t['MACD_Media_36'] > 0] if dir_macd_media == "Maior que 0 (>)" else t[t['MACD_Media_36'] < 0]
+
+        if is_alta: 
+            if tend_p_mm20: t = t[t['Fechamento'] > t['MM20']]
+            if tend_p_mm50: t = t[t['Fechamento'] > t['MM50']]
+            if tend_p_mm80: t = t[t['Fechamento'] > t['MM80']]
+            if tend_p_mm150: t = t[t['Fechamento'] > t['MM150']]
+            if tend_mm20_50: t = t[t['MM20'] > t['MM50']]
+            if tend_mm20_80: t = t[t['MM20'] > t['MM80']]
+            if tend_mm50_80: t = t[t['MM50'] > t['MM80']]
+            if tend_mm50_150: t = t[t['MM50'] > t['MM150']]
+            if tend_mm80_150: t = t[t['MM80'] > t['MM150']]
+            if rompimento_52w: t = t[t['Fechamento'] >= (t['Max_52W'] * 0.95)]
+        else:       
+            if tend_p_mm20: t = t[t['Fechamento'] < t['MM20']]
+            if tend_p_mm50: t = t[t['Fechamento'] < t['MM50']]
+            if tend_p_mm80: t = t[t['Fechamento'] < t['MM80']]
+            if tend_p_mm150: t = t[t['Fechamento'] < t['MM150']]
+            if tend_mm20_50: t = t[t['MM20'] < t['MM50']]
+            if tend_mm20_80: t = t[t['MM20'] < t['MM80']]
+            if tend_mm50_80: t = t[t['MM50'] < t['MM80']]
+            if tend_mm50_150: t = t[t['MM50'] < t['MM150']]
+            if tend_mm80_150: t = t[t['MM80'] < t['MM150']]
+            if rompimento_52w: t = t[t['Fechamento'] <= (t['Min_52W'] * 1.05)]
+
+        if volume_crescente: t = t[t['QtdMM20'] > t['QtdMM60']]
+
+        t = t.sort_values(by=ordenar_por, ascending=False).reset_index(drop=True)
+
+        colunas_dinheiro = ['Fechamento', 'Max_52W', 'Min_52W', 'Topo_Historico', 'MM20', 'MM50', 'MM80', 'MM100', 'MM150']
+        for col in colunas_dinheiro: t[col] = t[col].apply(lambda x: f"R$ {x:.2f}")
         
-        tabela_completa = varrer_mercado_ao_vivo()
-        
-        if tabela_completa.empty:
-            st.error("Erro ao puxar dados da internet.")
-        else:
-            t = tabela_completa.copy()
+        colunas_perc = ['Retorno_Ano', 'Retorno_12M', 'FR_IBOV', 'FR_IVVB']
+        for col in colunas_perc: t[col] = t[col].apply(lambda x: f"{x:.2%}")
 
-            # (A partir daqui, os seus filtros numéricos e de momento continuam iguais...)
+        colunas_3dec = ['MACD_Linha_10_3', 'MACD_Media_36']
+        for col in colunas_3dec: t[col] = t[col].apply(lambda x: f"{x:.3f}")
 
-            # 1. Filtros Numéricos Base (Liquidez, Alpha e Preço)
-            t = t[
-                (t['Fechamento'] >= preco_minimo) &
-                (t['Negocios_Hoje'] >= filtro_negocios) &
-                (t['QtdMM20'] >= filtro_qtdmm20) &
-                (t['Retorno_12M'] >= (retorno_12m_minimo / 100)) &
-                (t['FR_IBOV'] >= (fr_ibov_minimo / 100)) &
-                (t['FR_IVVB'] >= (fr_ivvb_minimo / 100))
-            ]
+        colunas_2dec = ['IFR3', 'IFR40', 'Estocastico_Lento']
+        for col in colunas_2dec: t[col] = t[col].apply(lambda x: f"{x:.2f}")
 
-            # 2. Filtros de Momento Dinâmicos
-            if usar_ifr40: t = t[t['IFR40'] >= filtro_ifr40]
-            if usar_ifr3: t = t[t['IFR3'] <= filtro_ifr3]
-            if usar_estocastico: t = t[t['Estocastico_Lento'] <= filtro_estocastico]
-            
-            if usar_macd_linha:
-                if dir_macd_linha == "Maior que 0 (>)": t = t[t['MACD_Linha_10_3'] > 0]
-                else: t = t[t['MACD_Linha_10_3'] < 0]
-                
-            if usar_macd_media:
-                if dir_macd_media == "Maior que 0 (>)": t = t[t['MACD_Media_36'] > 0]
-                else: t = t[t['MACD_Media_36'] < 0]
+        colunas_int = ['Negocios_Hoje', 'QtdMM20', 'QtdMM60', 'QtdMM100']
+        for col in colunas_int: t[col] = t[col].apply(lambda x: f"{x:,.0f}".replace(',', '.'))
 
-            # 3. Filtros de Tendência Dinâmicos (Alta ou Baixa)
-            if is_alta: # Buscando Tendência de Alta
-                if tend_p_mm20: t = t[t['Fechamento'] > t['MM20']]
-                if tend_p_mm50: t = t[t['Fechamento'] > t['MM50']]
-                if tend_p_mm80: t = t[t['Fechamento'] > t['MM80']]
-                if tend_p_mm150: t = t[t['Fechamento'] > t['MM150']]
-                
-                if tend_mm20_50: t = t[t['MM20'] > t['MM50']]
-                if tend_mm20_80: t = t[t['MM20'] > t['MM80']]
-                if tend_mm50_80: t = t[t['MM50'] > t['MM80']]
-                if tend_mm50_150: t = t[t['MM50'] > t['MM150']]
-                if tend_mm80_150: t = t[t['MM80'] > t['MM150']]
-            else:       # Buscando Tendência de Baixa (Short)
-                if tend_p_mm20: t = t[t['Fechamento'] < t['MM20']]
-                if tend_p_mm50: t = t[t['Fechamento'] < t['MM50']]
-                if tend_p_mm80: t = t[t['Fechamento'] < t['MM80']]
-                if tend_p_mm150: t = t[t['Fechamento'] < t['MM150']]
-                
-                if tend_mm20_50: t = t[t['MM20'] < t['MM50']]
-                if tend_mm20_80: t = t[t['MM20'] < t['MM80']]
-                if tend_mm50_80: t = t[t['MM50'] < t['MM80']]
-                if tend_mm50_150: t = t[t['MM50'] < t['MM150']]
-                if tend_mm80_150: t = t[t['MM80'] < t['MM150']]
-
-            # 4. Outros Filtros
-           # 4. Outros Filtros
-            if rompimento_52w:
-                if is_alta:
-                    t = t[t['Fechamento'] >= (t['Max_52W'] * 0.95)] # Até 5% abaixo da máxima
-                else:
-                    t = t[t['Fechamento'] <= (t['Min_52W'] * 1.05)] # Até 5% acima da mínima
-            
-            if volume_crescente: t = t[t['QtdMM20'] > t['QtdMM60']]
-
-            # 5. Formatação Visual e Apresentação
-            t = t.sort_values(by=ordenar_por, ascending=False).reset_index(drop=True)
-
-            colunas_dinheiro = ['Fechamento', 'Max_52W', 'Topo_Historico', 'MM20', 'MM50', 'MM80', 'MM100', 'MM150']
-            for col in colunas_dinheiro: t[col] = t[col].apply(lambda x: f"R$ {x:.2f}")
-            
-            colunas_perc = ['Retorno_Ano', 'Retorno_12M', 'FR_IBOV', 'FR_IVVB']
-            for col in colunas_perc: t[col] = t[col].apply(lambda x: f"{x:.2%}")
-
-            colunas_3dec = ['MACD_Linha_10_3', 'MACD_Media_36']
-            for col in colunas_3dec: t[col] = t[col].apply(lambda x: f"{x:.3f}")
-
-            colunas_2dec = ['IFR3', 'IFR40', 'Estocastico_Lento']
-            for col in colunas_2dec: t[col] = t[col].apply(lambda x: f"{x:.2f}")
-
-            colunas_int = ['Negocios_Hoje', 'QtdMM20', 'QtdMM60', 'QtdMM100']
-            for col in colunas_int: t[col] = t[col].apply(lambda x: f"{x:,.0f}".replace(',', '.'))
-
-            st.success(f"Nuvem Sincronizada! {len(t)} ações passaram nos seus filtros rigorosos.")
-            st.dataframe(t, width='stretch')
+        st.success(f"Nuvem Sincronizada! {len(t)} ações passaram nos seus filtros.")
+        st.dataframe(t, width='stretch')
 
 
 
