@@ -147,15 +147,27 @@ def varrer_mercado_ao_vivo():
 # ==========================================
 # 3. INTERFACE DE USUÁRIO E FILTROS
 # ==========================================
-st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide")
+# ADICIONADO: initial_sidebar_state="expanded" para forçar o menu a nascer aberto
+st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide", initial_sidebar_state="expanded")
 
-# CSS agressivo para cortar espaços mortos e ajustar o menu lateral
+# CSS CORRIGIDO: Agora a largura fixa só se aplica quando o painel está aberto!
 st.markdown("""
     <style>
            .block-container { padding-top: 1.5rem; padding-bottom: 0rem; }
-           [data-testid="stSidebar"] { min-width: 320px; max-width: 320px; }
+           div[data-testid="stExpanderDetails"] { padding-top: 0px; padding-bottom: 0.5rem; }
+           label[data-baseweb="checkbox"] { margin-bottom: -8px; }
+           
+           /* Deixa o filtro levemente maior (360px) APENAS quando está aberto */
+           [data-testid="stSidebar"][aria-expanded="true"] {
+               min-width: 360px !important;
+               max-width: 360px !important;
+           }
     </style>
     """, unsafe_allow_html=True)
+
+# ==========================================
+# 🔐 SISTEMA DE LOGIN (A PORTA DE ENTRADA)
+# ==========================================
 
 # ==========================================
 # 🔐 SISTEMA DE LOGIN (A PORTA DE ENTRADA)
