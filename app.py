@@ -78,7 +78,7 @@ def varrer_mercado_ao_vivo():
 
     for t_sa in tickers_sa:
         try:
-            # CORREÇÃO: ffill() adicionado para lidar com dias sem volume no Yahoo Finance
+            # CORREÇÃO: ffill() para tratar dias sem negócios
             df = pd.DataFrame({
                 'Fechamento': dados_brutos['Close'][t_sa],
                 'Máximo': dados_brutos['High'][t_sa],
@@ -149,25 +149,25 @@ def varrer_mercado_ao_vivo():
 # ==========================================
 st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide")
 
-# O CSS para remover as margens brancas gigantes do Streamlit
+# CSS agressivo para cortar espaços mortos e ajustar o menu lateral
 st.markdown("""
     <style>
-           .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+           .block-container { padding-top: 1.5rem; padding-bottom: 0rem; }
+           [data-testid="stSidebar"] { min-width: 320px; max-width: 320px; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🌐 Terminal Quantitativo B3")
 
-# O Botão volta para o centro do palco, logo abaixo do título!
-btn_varredura = st.button("🚀 Executar Varredura Ao Vivo (Forçar Atualização de Dados)", use_container_width=True)
+# Botão limpo, compacto e com função clear vinculada a ele
+btn_varredura = st.button("🚀 Executar Varredura Ao Vivo (Forçar Atualização de Dados)")
+
 if btn_varredura:
     varrer_mercado_ao_vivo.clear()
 
-st.markdown("---") # Uma linha charmosa para separar o botão da tabela
+st.markdown("---")
 
 st.sidebar.header("🎛️ Painel de Controle")
-
-# (Seus filtros de tendência continuam aqui para baixo...)
 
 with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
     preco_minimo = st.number_input("Preço Mínimo (R$)", value=2.00, step=0.50)
@@ -194,27 +194,27 @@ with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
     rompimento_52w = st.checkbox(texto_52w, value=False)
 
 with st.sidebar.expander("⚡ Filtros de Momento"):
-    usar_ifr40 = st.checkbox(" Filtro IFR40", value=True)
+    usar_ifr40 = st.checkbox("Filtro IFR40", value=True)
     if usar_ifr40:
         filtro_ifr40 = st.slider("IFR40 Mínimo (Força Longa)", 0, 100, 50)
         
     st.markdown("---")
-    usar_ifr3 = st.checkbox(" Filtro IFR3", value=True)
+    usar_ifr3 = st.checkbox("Filtro IFR3", value=True)
     if usar_ifr3:
         filtro_ifr3 = st.slider("IFR3 Máximo (Buscar Sobrevenda)", 0, 100, 100)
         
     st.markdown("---")
-    usar_estocastico = st.checkbox(" Filtro Estocástico", value=True)
+    usar_estocastico = st.checkbox("Filtro Estocástico", value=True)
     if usar_estocastico:
         filtro_estocastico = st.slider("Estocástico Lento Máximo", 0, 100, 100)
         
     st.markdown("---")
     st.markdown("**MACD vs Linha Zero (0)**")
-    usar_macd_linha = st.checkbox(" Filtro MACD Linha")
+    usar_macd_linha = st.checkbox("Filtro MACD Linha")
     if usar_macd_linha:
         dir_macd_linha = st.radio("A MACD Linha deve ser:", ["Maior que 0 (>)", "Menor que 0 (<)"], key="rad_macd_linha")
         
-    usar_macd_media = st.checkbox(" Filtro MACD Média 36")
+    usar_macd_media = st.checkbox("Filtro MACD Média 36")
     if usar_macd_media:
         dir_macd_media = st.radio("A Média 36 deve ser:", ["Maior que 0 (>)", "Menor que 0 (<)"], key="rad_macd_media")
 
@@ -233,9 +233,8 @@ ordenar_por = st.sidebar.selectbox("Ordenar Resultados por:",
     ["FR_IBOV", "Retorno_12M", "IFR40", "MACD_Linha_10_3", "Negocios_Hoje"])
 
 # ==========================================
-# 4. EXECUÇÃO E APRESENTAÇÃO (GATILHO REATIVO)
+# 4. EXECUÇÃO E APRESENTAÇÃO
 # ==========================================
-
 with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
     tabela_completa = varrer_mercado_ao_vivo()
     
@@ -303,26 +302,11 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
         colunas_int = ['Negocios_Hoje', 'QtdMM20', 'QtdMM60', 'QtdMM100']
         for col in colunas_int: t[col] = t[col].apply(lambda x: f"{x:,.0f}".replace(',', '.'))
 
-        st.success(f"Nuvem Sincronizada! {len(t)} ações passaram nos seus filtros.")
-        
-      # (Seu código de formatação das colunas de dinheiro, perc, etc, continua acima disto...)
-
         # ==========================================
-        # 5. DASHBOARD COMPACTO E TABELA
+        # 5. VISUALIZAÇÃO FOCADA (CLEAN UI)
         # ==========================================
-        
-        # Mensagem fina e elegante no lugar da caixa verde gigante
-        st.markdown(f"** Nuvem Sincronizada! | {len(t)} ações passaram nos seus filtros.**")
-
-        # Pódio Top 3 compactado (a 4ª coluna invisível empurra eles para a esquerda)
-        if len(t) >= 3:
-            col1, col2, col3, col4 = st.columns([1, 1, 1, 2]) 
-            with col1: st.metric(label=f"🥇 {t.iloc[0]['Ticker']}", value=t.iloc[0]['Fechamento'], delta=t.iloc[0]['Retorno_12M'])
-            with col2: st.metric(label=f"🥈 {t.iloc[1]['Ticker']}", value=t.iloc[1]['Fechamento'], delta=t.iloc[1]['Retorno_12M'])
-            with col3: st.metric(label=f"🥉 {t.iloc[2]['Ticker']}", value=t.iloc[2]['Fechamento'], delta=t.iloc[2]['Retorno_12M'])
-
-        # Tabela com altura controlada (400px) para não passar do limite da tela
-        st.dataframe(t, use_container_width=True, height=400)
+        st.markdown(f"**Sincronizado | {len(t)} ações passaram nos filtros.**")
+        st.dataframe(t, use_container_width=True, height=750)
 
 
 
