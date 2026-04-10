@@ -162,7 +162,17 @@ def varrer_mercado_ao_vivo():
 st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide")
 st.title("🌐 Terminal Quantitativo B3 (Live Sync)")
 
+# Botão movido para a TELA CENTRAL com destaque "Primary"
+btn_varredura = st.button("🔄 Iniciar Varredura (Atualizar Dados do Servidor)", type="primary", use_container_width=True)
+if btn_varredura:
+    varrer_mercado_ao_vivo.clear() # Limpa o cache e força novo download
+
+st.markdown("---") # Adiciona uma linha sutil para separar o título da futura tabela
+
 st.sidebar.header("🎛️ Painel de Controle")
+
+# --- ABA DE TENDÊNCIA ---
+# (O resto do seu código continua exatamente igual daqui para baixo...)
 
 # --- ABA DE TENDÊNCIA ---
 with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
