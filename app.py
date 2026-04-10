@@ -292,7 +292,24 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
         for col in colunas_int: t[col] = t[col].apply(lambda x: f"{x:,.0f}".replace(',', '.'))
 
         st.success(f"Nuvem Sincronizada! {len(t)} ações passaram nos seus filtros.")
-        st.dataframe(t, width='stretch')
+        
+        # ==========================================
+        # 5. DASHBOARD (HUD) E VISUALIZAÇÃO
+        # ==========================================
+        # Cria os "quadradinhos" com o Top 3 do ranking atual
+        if len(t) >= 3:
+            st.markdown("### 🏆 Top 3 Destaques do Filtro")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric(label=f"🥇 {t.iloc[0]['Ticker']}", value=t.iloc[0]['Fechamento'], delta=t.iloc[0]['Retorno_12M'])
+            with col2:
+                st.metric(label=f"🥈 {t.iloc[1]['Ticker']}", value=t.iloc[1]['Fechamento'], delta=t.iloc[1]['Retorno_12M'])
+            with col3:
+                st.metric(label=f"🥉 {t.iloc[2]['Ticker']}", value=t.iloc[2]['Fechamento'], delta=t.iloc[2]['Retorno_12M'])
+            st.markdown("---")
+            
+        # Tabela forçada a usar toda a largura e com 600 pixels de altura
+        st.dataframe(t, use_container_width=True, height=600)
 
 
 
