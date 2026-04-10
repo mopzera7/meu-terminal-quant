@@ -148,9 +148,26 @@ def varrer_mercado_ao_vivo():
 # 3. INTERFACE DE USUÁRIO E FILTROS
 # ==========================================
 st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide")
-st.title("🌐 Terminal Quantitativo B3 (Live Sync)")
+
+# O CSS para remover as margens brancas gigantes do Streamlit
+st.markdown("""
+    <style>
+           .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("🌐 Terminal Quantitativo B3")
+
+# O Botão volta para o centro do palco, logo abaixo do título!
+btn_varredura = st.button("🚀 Executar Varredura Ao Vivo (Forçar Atualização de Dados)", use_container_width=True)
+if btn_varredura:
+    varrer_mercado_ao_vivo.clear()
+
+st.markdown("---") # Uma linha charmosa para separar o botão da tabela
 
 st.sidebar.header("🎛️ Painel de Controle")
+
+# (Seus filtros de tendência continuam aqui para baixo...)
 
 with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
     preco_minimo = st.number_input("Preço Mínimo (R$)", value=2.00, step=0.50)
@@ -218,11 +235,6 @@ ordenar_por = st.sidebar.selectbox("Ordenar Resultados por:",
 # ==========================================
 # 4. EXECUÇÃO E APRESENTAÇÃO (GATILHO REATIVO)
 # ==========================================
-
-btn_varredura = st.button("🚀 Executar Varredura Ao Vivo (Forçar Atualização de Dados)")
-
-if btn_varredura:
-    varrer_mercado_ao_vivo.clear() # Limpa a memória para baixar dados frescos
 
 with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
     tabela_completa = varrer_mercado_ao_vivo()
@@ -293,24 +305,24 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
 
         st.success(f"Nuvem Sincronizada! {len(t)} ações passaram nos seus filtros.")
         
-        # ==========================================
-        # 5. DASHBOARD (HUD) E VISUALIZAÇÃO
-        # ==========================================
-        # Cria os "quadradinhos" com o Top 3 do ranking atual
-        if len(t) >= 3:
-            st.markdown("### 🏆 Top 3 Destaques do Filtro")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric(label=f"🥇 {t.iloc[0]['Ticker']}", value=t.iloc[0]['Fechamento'], delta=t.iloc[0]['Retorno_12M'])
-            with col2:
-                st.metric(label=f"🥈 {t.iloc[1]['Ticker']}", value=t.iloc[1]['Fechamento'], delta=t.iloc[1]['Retorno_12M'])
-            with col3:
-                st.metric(label=f"🥉 {t.iloc[2]['Ticker']}", value=t.iloc[2]['Fechamento'], delta=t.iloc[2]['Retorno_12M'])
-            st.markdown("---")
-            
-        # Tabela forçada a usar toda a largura e com 600 pixels de altura
-        st.dataframe(t, use_container_width=True, height=600)
+      # (Seu código de formatação das colunas de dinheiro, perc, etc, continua acima disto...)
 
+        # ==========================================
+        # 5. DASHBOARD COMPACTO E TABELA
+        # ==========================================
+        
+        # Mensagem fina e elegante no lugar da caixa verde gigante
+        st.markdown(f"** Nuvem Sincronizada! | {len(t)} ações passaram nos seus filtros.**")
+
+        # Pódio Top 3 compactado (a 4ª coluna invisível empurra eles para a esquerda)
+        if len(t) >= 3:
+            col1, col2, col3, col4 = st.columns([1, 1, 1, 2]) 
+            with col1: st.metric(label=f"🥇 {t.iloc[0]['Ticker']}", value=t.iloc[0]['Fechamento'], delta=t.iloc[0]['Retorno_12M'])
+            with col2: st.metric(label=f"🥈 {t.iloc[1]['Ticker']}", value=t.iloc[1]['Fechamento'], delta=t.iloc[1]['Retorno_12M'])
+            with col3: st.metric(label=f"🥉 {t.iloc[2]['Ticker']}", value=t.iloc[2]['Fechamento'], delta=t.iloc[2]['Retorno_12M'])
+
+        # Tabela com altura controlada (400px) para não passar do limite da tela
+        st.dataframe(t, use_container_width=True, height=400)
 
 
 
