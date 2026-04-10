@@ -149,17 +149,21 @@ def varrer_mercado_ao_vivo():
 # ==========================================
 st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide")
 
-# CSS agressivo para cortar espaços mortos e ajustar o menu lateral
+# CSS Inteligente: Corta espaços, compacta menus e permite a expansão da tabela!
 st.markdown("""
     <style>
+           /* Tira o espaço em branco do topo da tela principal */
            .block-container { padding-top: 1.5rem; padding-bottom: 0rem; }
-           [data-testid="stSidebar"] { min-width: 320px; max-width: 320px; }
+           /* Remove os buracos em branco dentro das abas do menu lateral */
+           div[data-testid="stExpanderDetails"] { padding-top: 0px; padding-bottom: 0.5rem; }
+           /* Aproxima as caixinhas de seleção (checkbox) umas das outras */
+           label[data-baseweb="checkbox"] { margin-bottom: -8px; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🌐 Terminal Quantitativo B3")
 
-# Botão limpo, compacto e com função clear vinculada a ele
+# Botão limpo, compacto
 btn_varredura = st.button("🚀 Executar Varredura Ao Vivo (Forçar Atualização de Dados)")
 
 if btn_varredura:
@@ -302,10 +306,14 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
         colunas_int = ['Negocios_Hoje', 'QtdMM20', 'QtdMM60', 'QtdMM100']
         for col in colunas_int: t[col] = t[col].apply(lambda x: f"{x:,.0f}".replace(',', '.'))
 
-        # ==========================================
+       # ==========================================
         # 5. VISUALIZAÇÃO FOCADA (CLEAN UI)
         # ==========================================
-        st.markdown(f"**Sincronizado | {len(t)} ações passaram nos filtros.**")
+        
+        # A clássica barra verde de sucesso voltou!
+        st.success(f"Sincronizado! {len(t)} ações passaram nos filtros.")
+
+        # Tabela com altura máxima dominando a tela
         st.dataframe(t, use_container_width=True, height=750)
 
 
