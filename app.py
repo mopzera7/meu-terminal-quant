@@ -149,22 +149,60 @@ def varrer_mercado_ao_vivo():
 # ==========================================
 st.set_page_config(page_title="Terminal Quantitativo B3", layout="wide")
 
-# CSS Inteligente: Corta espaços, compacta menus e permite a expansão da tabela!
+# CSS agressivo para cortar espaços mortos e ajustar o menu lateral
 st.markdown("""
     <style>
-           /* Tira o espaço em branco do topo da tela principal */
            .block-container { padding-top: 1.5rem; padding-bottom: 0rem; }
-           /* Remove os buracos em branco dentro das abas do menu lateral */
-           div[data-testid="stExpanderDetails"] { padding-top: 0px; padding-bottom: 0.5rem; }
-           /* Aproxima as caixinhas de seleção (checkbox) umas das outras */
-           label[data-baseweb="checkbox"] { margin-bottom: -8px; }
+           [data-testid="stSidebar"] { min-width: 320px; max-width: 320px; }
     </style>
     """, unsafe_allow_html=True)
 
+# ==========================================
+# 🔐 SISTEMA DE LOGIN (A PORTA DE ENTRADA)
+# ==========================================
+# 1. Cria a "memória" de login (VOCÊ TINHA ESQUECIDO ESTA PARTE)
+if 'autenticado' not in st.session_state:
+    st.session_state['autenticado'] = False
+
+# 2. Se não estiver logado, cria as colunas e mostra a tela de senha
+if not st.session_state['autenticado']:
+    st.markdown("<br><br><br>", unsafe_allow_html=True) 
+    col1, col2, col3 = st.columns([1, 1, 1]) # CRIA AS 3 COLUNAS (Faltava isto!)
+    
+    with col2:
+        st.markdown("<h2 style='text-align: center;'>🔐 Acesso Restrito</h2>", unsafe_allow_html=True)
+        usuario = st.text_input("Usuário")
+        senha = st.text_input("Senha", type="password")
+        btn_login = st.button("Entrar no Terminal", type="primary", use_container_width=True)
+        
+        # A sua nova "Lista de Convidados"
+        usuarios_permitidos = {
+            "Matheus": "robotrade2026",
+            "Mauro": "traderpai7$",
+            "Visitante": "restrito"
+        }
+        
+        if btn_login:
+            if usuario in usuarios_permitidos and usuarios_permitidos[usuario] == senha: 
+                st.session_state['autenticado'] = True
+                st.rerun() # Recarrega a página agora logado
+            else:
+                st.error("❌ Usuário ou senha incorretos.")
+                
+    st.stop() # ESTE É O SEGREDO: O código para aqui se não estiver logado!
+
+
+# ==========================================
+# SE PASSOU PELO LOGIN, MOSTRA O SITE NORMAL
+# ==========================================
 st.title("🌐 Terminal Quantitativo B3")
 
-# Botão limpo, compacto
+# (O resto do seu código com o botão de varredura e menu lateral continua aqui para baixo...)
+
+# Botão limpo, compacto e com função clear vinculada a ele
 btn_varredura = st.button("🚀 Executar Varredura Ao Vivo (Forçar Atualização de Dados)")
+
+# (O resto do seu código continua exatamente igual daqui para baixo...)
 
 if btn_varredura:
     varrer_mercado_ao_vivo.clear()
