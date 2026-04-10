@@ -157,10 +157,10 @@ st.markdown("""
            div[data-testid="stExpanderDetails"] { padding-top: 0px; padding-bottom: 0.5rem; }
            label[data-baseweb="checkbox"] { margin-bottom: -8px; }
            
-           /* Deixa o filtro levemente maior (360px) APENAS quando está aberto */
+           /* Deixa o filtro levemente maior (340px) APENAS quando está aberto */
            [data-testid="stSidebar"][aria-expanded="true"] {
-               min-width: 360px !important;
-               max-width: 360px !important;
+               min-width: 340px !important;
+               max-width: 340px !important;
            }
     </style>
     """, unsafe_allow_html=True)
