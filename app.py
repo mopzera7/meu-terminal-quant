@@ -111,6 +111,7 @@ def varrer_mercado_ao_vivo():
             df['IFR40'] = calcular_ifr(df['Fechamento'], periodos=40)
             df['IFR3'] = calcular_ifr(df['Fechamento'], periodos=3)
             df['Max_52W'] = df['Máximo'].rolling(window=252).max()
+            df['Min_52W'] = df['Mínimo'].rolling(window=252).min()
             df['Topo_Historico'] = df['Máximo'].cummax()
 
             min_8 = df['Mínimo'].rolling(window=8).min()
@@ -146,7 +147,7 @@ def varrer_mercado_ao_vivo():
                 'Retorno_12M': retorno_12m, 'FR_IBOV': fr_ibov, 'FR_IVVB': fr_ivvb,
                 'IFR3': hoje['IFR3'], 'IFR40': hoje['IFR40'], 'Estocastico_Lento': hoje['Estocastico_Lento'],
                 'MACD_Linha_10_3': hoje['MACD_Linha'], 'MACD_Media_36': hoje['MACD_Media_36'],
-                'Max_52W': hoje['Max_52W'], 'Topo_Historico': hoje['Topo_Historico'],
+                'Max_52W': hoje['Max_52W'], 'Min_52W': hoje['Min_52W'], 'Topo_Historico': hoje['Topo_Historico'],
                 'MM20': hoje['MM20'], 'MM50': hoje['MM50'], 'MM80': hoje['MM80'],
                 'MM100': hoje['MM100'], 'MM150': hoje['MM150'], 'Negocios_Hoje': hoje['Quantidade'],
                 'QtdMM20': hoje['QtdMM20'], 'QtdMM60': hoje['QtdMM60'], 'QtdMM100': hoje['QtdMM100']
@@ -187,7 +188,8 @@ with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
     tend_mm80_150 = st.checkbox(f"MM80 {simbolo} MM150", value=False)
 
     st.markdown("---")
-    rompimento_52w = st.checkbox("Próxima à Máxima de 52W (Até 5%)", value=False)
+    texto_52w = "Próxima à Máxima de 52W (Até 5%)" if is_alta else "Próxima à Mínima de 52W (Até 5%)"
+    rompimento_52w = st.checkbox(texto_52w, value=False)
 
 # --- ABA DE MOMENTO ---
 with st.sidebar.expander("⚡ Filtros de Momento"):
@@ -239,6 +241,7 @@ botao_aplicar = st.sidebar.button("🚀 Aplicar Filtros", use_container_width=Tr
 # ==========================================
 # 4. EXECUÇÃO E FILTRAGEM (O GATILHO)
 # ==========================================
+
 # O botão com o texto e estilo exatamente igual ao seu arquivo original
 btn_varredura = st.button("🚀 Executar Varredura Ao Vivo")
 
@@ -306,7 +309,13 @@ if btn_varredura or botao_aplicar:
                 if tend_mm80_150: t = t[t['MM80'] < t['MM150']]
 
             # 4. Outros Filtros
-            if rompimento_52w: t = t[t['Fechamento'] >= (t['Max_52W'] * 0.95)]
+           # 4. Outros Filtros
+            if rompimento_52w:
+                if is_alta:
+                    t = t[t['Fechamento'] >= (t['Max_52W'] * 0.95)] # Até 5% abaixo da máxima
+                else:
+                    t = t[t['Fechamento'] <= (t['Min_52W'] * 1.05)] # Até 5% acima da mínima
+            
             if volume_crescente: t = t[t['QtdMM20'] > t['QtdMM60']]
 
             # 5. Formatação Visual e Apresentação
