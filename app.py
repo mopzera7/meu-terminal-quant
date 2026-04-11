@@ -62,7 +62,7 @@ def varrer_mercado_ao_vivo():
     ]
     tickers_sa = [t + ".SA" for t in tickers]
     benchmarks = ["BOVA11.SA", "IVVB11.SA"]
-    lista_completa = tickers_sa + benchmarks
+    lista_completa = list(set(tickers_sa + benchmarks))
 
     dados_brutos = yf.download(lista_completa, period="5y", progress=False)
 
@@ -91,9 +91,16 @@ def varrer_mercado_ao_vivo():
                 'Máximo': dados_brutos['High'][t_sa],
                 'Mínimo': dados_brutos['Low'][t_sa],
                 'Quantidade': dados_brutos['Volume'][t_sa]
-            }).ffill().dropna()
+            })
+            
+            # AUDITORIA: Preços preenchem vazios com o último valor (ffill). 
+            # Quantidade/Volume preenche vazios com ZERO (fillna(0)).
+            df[['Fechamento', 'Máximo', 'Mínimo']] = df[['Fechamento', 'Máximo', 'Mínimo']].ffill()
+            df['Quantidade'] = df['Quantidade'].fillna(0)
+            df = df.dropna() # Agora sim, remove a "sujeira" do IPO
 
             if len(df) < 252: continue 
+            # ... (o resto continua igual, ticker_puro, etc) 
         
             ticker_puro = t_sa.replace(".SA", "")
             
@@ -264,7 +271,8 @@ with st.sidebar.expander("🏆 Filtros de Performance"):
     retorno_12m_minimo = st.number_input("Retorno 12M Mínimo (%)", value=-100.0, step=10.0)
 
 with st.sidebar.expander("💰 Filtros de Liquidez"):
-    filtro_negocios = st.number_input("Qtd. de Ações Hoje (Mínimo)", value=10000, step=10000)
+    # Atualizado para manter consistência total com o nome
+    filtro_qtd_hoje = st.number_input("Qtd. de Ações Hoje (Mínimo)", value=10000, step=10000)
     filtro_qtdmm20 = st.number_input("Qtd. Média 20d (Mínimo)", value=0, step=10000)
     volume_crescente = st.checkbox("Liquidez Crescente (Qtd. 20d > Qtd. 60d)", value=False)
 
@@ -285,7 +293,7 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
 
         t = t[
             (t['Fechamento'] >= preco_minimo) &
-            (t['Qtd_Acoes'] >= filtro_negocios) &
+            (t['Qtd_Acoes'] >= filtro_qtd_hoje) & # A variável atualizada aqui
             (t['QtdMedia_20d'] >= filtro_qtdmm20) &
             (t['Retorno_12M'] >= (retorno_12m_minimo / 100)) &
             (t['FR_IBOV'] >= (fr_ibov_minimo / 100)) &
