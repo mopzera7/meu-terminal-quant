@@ -64,7 +64,7 @@ def varrer_mercado_ao_vivo():
     benchmarks = ["BOVA11.SA", "IVVB11.SA"]
     lista_completa = list(set(tickers_sa + benchmarks))
 
-    dados_brutos = yf.download(lista_completa, period="5y", progress=False)
+    dados_brutos = yf.download(lista_completa, period="5y", progress=False, ignore_tz=True)
 
     lista_rastreador = []
     retorno_12m_ibov = 0
