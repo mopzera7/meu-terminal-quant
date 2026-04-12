@@ -33,7 +33,7 @@ def varrer_mercado_ao_vivo():
         "CMIN3", "COCA34", "COCE5", "COGN3", "COPH34", "COWC34", "CPFE3", "CPLE3", "CSAN3", "CSCO34",
         "CSED3", "CSMG3", "CSNA3", "CSUD3", "CTGP34", "CURY3", "CVCB3", "CXSE3", "CYRE3", "DASA3",
         "DEEC34", "DESK3", "DEXP3", "DHER34", "DIRR3", "DISB34", "DIVO11", "DMVF3", "DOTZ3", "DXCO3",
-        "E1CO34", "EALT4", "EBAY34", "ECOR3", "EGIE3", "EMBR3", "ENEV3", "ENGI11", "ENJU3", "EQTL3",
+        "E1CO34", "EALT4", "EBAY34", "ECOR3", "EGIE3", "EMBJ3", "ENEV3", "ENGI11", "ENJU3", "EQTL3",
         "ESPA3", "ETER3", "EUCA4", "EVEN3", "EXXO34", "EZTC3", "FESA4", "FHER3", "FIEI3", "FIQE3",
         "FLRY3", "FRAS3", "GEOO34", "GFSA3", "GGBR3", "GGBR4", "GGPS3", "GMAT3", "GMCO34", "GOAU3",
         "GOAU4", "GOGL34", "GOGL35", "GOLL54", "GOLD11", "GRND3", "GSGI34", "GUAR3", "HAGA4", "HAPV3",
