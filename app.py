@@ -93,14 +93,11 @@ def varrer_mercado_ao_vivo():
                 'Quantidade': dados_brutos['Volume'][t_sa]
             })
             
-            # AUDITORIA: Preços preenchem vazios com o último valor (ffill). 
-            # Quantidade/Volume preenche vazios com ZERO (fillna(0)).
             df[['Fechamento', 'Máximo', 'Mínimo']] = df[['Fechamento', 'Máximo', 'Mínimo']].ffill()
             df['Quantidade'] = df['Quantidade'].fillna(0)
-            df = df.dropna() # Agora sim, remove a "sujeira" do IPO
+            df = df.dropna()
 
             if len(df) < 252: continue 
-            # ... (o resto continua igual, ticker_puro, etc) 
         
             ticker_puro = t_sa.replace(".SA", "")
             
@@ -109,9 +106,17 @@ def varrer_mercado_ao_vivo():
             df['MM80'] = df['Fechamento'].rolling(window=80).mean()
             df['MM100'] = df['Fechamento'].rolling(window=100).mean()
             df['MM150'] = df['Fechamento'].rolling(window=150).mean()
+            
+            df['MM20_10d'] = df['MM20'].shift(10)
+            df['MM50_10d'] = df['MM50'].shift(10)
+            df['MM80_10d'] = df['MM80'].shift(10)
+            df['MM100_10d'] = df['MM100'].shift(10)
+            df['MM150_10d'] = df['MM150'].shift(10)
+            
             df['QtdMedia_20d'] = df['Quantidade'].rolling(window=20).mean()
             df['QtdMedia_60d'] = df['Quantidade'].rolling(window=60).mean()
             df['QtdMedia_100d'] = df['Quantidade'].rolling(window=100).mean()
+            
             df['IFR40'] = calcular_ifr(df['Fechamento'], periodos=40)
             df['IFR3'] = calcular_ifr(df['Fechamento'], periodos=3)
             df['Max_52W'] = df['Máximo'].rolling(window=252).max()
@@ -151,8 +156,11 @@ def varrer_mercado_ao_vivo():
                 'MACD_Linha_10_3': hoje['MACD_Linha'], 'MACD_Media_36': hoje['MACD_Media_36'],
                 'Max_52W': hoje['Max_52W'], 'Min_52W': hoje['Min_52W'], 'Topo_Historico': hoje['Topo_Historico'],
                 'MM20': hoje['MM20'], 'MM50': hoje['MM50'], 'MM80': hoje['MM80'],
-                'MM100': hoje['MM100'], 'MM150': hoje['MM150'], 'Qtd_Acoes': hoje['Quantidade'],
-                'QtdMedia_20d': hoje['QtdMedia_20d'], 'QtdMedia_60d': hoje['QtdMedia_60d'], 'QtdMedia_100d': hoje['QtdMedia_100d']
+                'MM100': hoje['MM100'], 'MM150': hoje['MM150'], 
+                'MM20_10d': hoje['MM20_10d'], 'MM50_10d': hoje['MM50_10d'], 'MM80_10d': hoje['MM80_10d'], 
+                'MM100_10d': hoje['MM100_10d'], 'MM150_10d': hoje['MM150_10d'], 
+                'Qtd_Acoes': hoje['Quantidade'], 'QtdMedia_20d': hoje['QtdMedia_20d'], 
+                'QtdMedia_60d': hoje['QtdMedia_60d'], 'QtdMedia_100d': hoje['QtdMedia_100d']
             })
         except Exception as e:
             pass
@@ -227,14 +235,24 @@ with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
     tend_p_mm20 = st.checkbox(f"Preço {simbolo} MM20", value=False)
     tend_p_mm50 = st.checkbox(f"Preço {simbolo} MM50", value=False)
     tend_p_mm80 = st.checkbox(f"Preço {simbolo} MM80", value=False)
+    tend_p_mm100 = st.checkbox(f"Preço {simbolo} MM100", value=False)
     tend_p_mm150 = st.checkbox(f"Preço {simbolo} MM150", value=False)
     
     st.markdown("**2. Cruzamento de Médias Móveis:**")
     tend_mm20_50 = st.checkbox(f"MM20 {simbolo} MM50", value=False)
     tend_mm20_80 = st.checkbox(f"MM20 {simbolo} MM80", value=False)
     tend_mm50_80 = st.checkbox(f"MM50 {simbolo} MM80", value=False)
+    tend_mm50_100 = st.checkbox(f"MM50 {simbolo} MM100", value=False)
     tend_mm50_150 = st.checkbox(f"MM50 {simbolo} MM150", value=False)
     tend_mm80_150 = st.checkbox(f"MM80 {simbolo} MM150", value=False)
+
+    st.markdown("**3. Inclinação da Média (Hoje vs 10 dias):**")
+    dir_texto = "Cima" if is_alta else "Baixo"
+    incl_mm20 = st.checkbox(f"MM20 Aponta p/ {dir_texto}", value=False)
+    incl_mm50 = st.checkbox(f"MM50 Aponta p/ {dir_texto}", value=False)
+    incl_mm80 = st.checkbox(f"MM80 Aponta p/ {dir_texto}", value=False)
+    incl_mm100 = st.checkbox(f"MM100 Aponta p/ {dir_texto}", value=False)
+    incl_mm150 = st.checkbox(f"MM150 Aponta p/ {dir_texto}", value=False)
 
     st.markdown("---")
     texto_52w = "Próxima à Máxima de 52W (Até 5%)" if is_alta else "Próxima à Mínima de 52W (Até 5%)"
@@ -266,12 +284,11 @@ with st.sidebar.expander("⚡ Filtros de Momento"):
         dir_macd_media = st.radio("A Média 36 deve ser:", ["Maior que 0 (>)", "Menor que 0 (<)"], key="rad_macd_media")
 
 with st.sidebar.expander("🏆 Filtros de Performance"):
-    fr_ibov_minimo = st.number_input("FR_IBOV Mínimo (%)", value=0.0, step=5.0)
+    fr_ibov_minimo = st.number_input("FR_IBOV Mínimo (%)", value=-100.0, step=5.0) 
     fr_ivvb_minimo = st.number_input("FR_IVVB Mínimo (%)", value=-100.0, step=5.0)
     retorno_12m_minimo = st.number_input("Retorno 12M Mínimo (%)", value=-100.0, step=10.0)
 
 with st.sidebar.expander("💰 Filtros de Liquidez"):
-    # Atualizado para manter consistência total com o nome
     filtro_qtd_hoje = st.number_input("Qtd. de Ações Hoje (Mínimo)", value=10000, step=10000)
     filtro_qtdmm20 = st.number_input("Qtd. Média 20d (Mínimo)", value=0, step=10000)
     volume_crescente = st.checkbox("Liquidez Crescente (Qtd. 20d > Qtd. 60d)", value=False)
@@ -293,7 +310,7 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
 
         t = t[
             (t['Fechamento'] >= preco_minimo) &
-            (t['Qtd_Acoes'] >= filtro_qtd_hoje) & # A variável atualizada aqui
+            (t['Qtd_Acoes'] >= filtro_qtd_hoje) & 
             (t['QtdMedia_20d'] >= filtro_qtdmm20) &
             (t['Retorno_12M'] >= (retorno_12m_minimo / 100)) &
             (t['FR_IBOV'] >= (fr_ibov_minimo / 100)) &
@@ -312,30 +329,50 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
             if tend_p_mm20: t = t[t['Fechamento'] > t['MM20']]
             if tend_p_mm50: t = t[t['Fechamento'] > t['MM50']]
             if tend_p_mm80: t = t[t['Fechamento'] > t['MM80']]
+            if tend_p_mm100: t = t[t['Fechamento'] > t['MM100']]
             if tend_p_mm150: t = t[t['Fechamento'] > t['MM150']]
+            
             if tend_mm20_50: t = t[t['MM20'] > t['MM50']]
             if tend_mm20_80: t = t[t['MM20'] > t['MM80']]
             if tend_mm50_80: t = t[t['MM50'] > t['MM80']]
+            if tend_mm50_100: t = t[t['MM50'] > t['MM100']]
             if tend_mm50_150: t = t[t['MM50'] > t['MM150']]
             if tend_mm80_150: t = t[t['MM80'] > t['MM150']]
+            
+            if incl_mm20: t = t[t['MM20'] > t['MM20_10d']]
+            if incl_mm50: t = t[t['MM50'] > t['MM50_10d']]
+            if incl_mm80: t = t[t['MM80'] > t['MM80_10d']]
+            if incl_mm100: t = t[t['MM100'] > t['MM100_10d']]
+            if incl_mm150: t = t[t['MM150'] > t['MM150_10d']]
+            
             if rompimento_52w: t = t[t['Fechamento'] >= (t['Max_52W'] * 0.95)]
+            
         else:       
             if tend_p_mm20: t = t[t['Fechamento'] < t['MM20']]
             if tend_p_mm50: t = t[t['Fechamento'] < t['MM50']]
             if tend_p_mm80: t = t[t['Fechamento'] < t['MM80']]
+            if tend_p_mm100: t = t[t['Fechamento'] < t['MM100']]
             if tend_p_mm150: t = t[t['Fechamento'] < t['MM150']]
+            
             if tend_mm20_50: t = t[t['MM20'] < t['MM50']]
             if tend_mm20_80: t = t[t['MM20'] < t['MM80']]
             if tend_mm50_80: t = t[t['MM50'] < t['MM80']]
+            if tend_mm50_100: t = t[t['MM50'] < t['MM100']]
             if tend_mm50_150: t = t[t['MM50'] < t['MM150']]
             if tend_mm80_150: t = t[t['MM80'] < t['MM150']]
+            
+            if incl_mm20: t = t[t['MM20'] < t['MM20_10d']]
+            if incl_mm50: t = t[t['MM50'] < t['MM50_10d']]
+            if incl_mm80: t = t[t['MM80'] < t['MM80_10d']]
+            if incl_mm100: t = t[t['MM100'] < t['MM100_10d']]
+            if incl_mm150: t = t[t['MM150'] < t['MM150_10d']]
+            
             if rompimento_52w: t = t[t['Fechamento'] <= (t['Min_52W'] * 1.05)]
 
         if volume_crescente: t = t[t['QtdMedia_20d'] > t['QtdMedia_60d']]
 
         t = t.sort_values(by=ordenar_por, ascending=False).reset_index(drop=True)
 
-        # REORGANIZAÇÃO LOGÍSTICA DAS COLUNAS
         ordem_colunas = [
             'Ticker', 'Fechamento', 'Topo_Historico', 'Max_52W', 'Min_52W', 
             'Retorno_Ano', 'Retorno_12M', 'FR_IBOV', 'FR_IVVB', 
@@ -345,7 +382,6 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
         ]
         t = t[ordem_colunas] 
 
-        # FORMATAÇÃO VISUAL 
         colunas_dinheiro = ['Fechamento', 'Max_52W', 'Min_52W', 'Topo_Historico', 'MM20', 'MM50', 'MM80', 'MM100', 'MM150']
         for col in colunas_dinheiro: t[col] = t[col].apply(lambda x: f"R$ {x:.2f}")
         
@@ -361,6 +397,5 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
         colunas_int = ['Qtd_Acoes', 'QtdMedia_20d', 'QtdMedia_60d', 'QtdMedia_100d']
         for col in colunas_int: t[col] = t[col].apply(lambda x: f"{x:,.0f}".replace(',', '.'))
 
-        # VISUALIZAÇÃO FOCADA (CLEAN UI)
         st.success(f"Sincronizado! {len(t)} ações passaram nos filtros.")
         st.dataframe(t, use_container_width=True, height=750)
