@@ -86,29 +86,25 @@ def varrer_mercado_ao_vivo():
 
     for t_sa in tickers_sa:
         try:
-            # 1. Cria o DataFrame e já aplica o float32 nas colunas de preço para salvar RAM
+            # 1. Cria o DataFrame e aplica float32
             df = pd.DataFrame({
                 'Fechamento': dados_brutos['Close'][t_sa].astype('float32'),
                 'Máximo': dados_brutos['High'][t_sa].astype('float32'),
                 'Mínimo': dados_brutos['Low'][t_sa].astype('float32'),
-                'Quantidade': dados_brutos['Volume'][t_sa] # Quantidade fica normal pois são números grandes
+                'Quantidade': dados_brutos['Volume'][t_sa]
             })
             
-            # 2. Preenche os dados vazios dos preços usando o último dia útil
             df[['Fechamento', 'Máximo', 'Mínimo']] = df[['Fechamento', 'Máximo', 'Mínimo']].ffill()
-            
-            # 3. Tratamento do "Erro de Segunda-Feira" (Volume Zerado)
-            # Preenche primeiro com o volume anterior em vez de forçar zero imediatamente
             df['Quantidade'] = df['Quantidade'].ffill() 
-            # Caso os primeiros dias do histórico sejam vazios, aí sim aplica o zero
             df['Quantidade'] = df['Quantidade'].fillna(0)
-            
-            # Remove qualquer linha que tenha ficado inválida
             df = df.dropna()
 
             if len(df) < 252: continue 
         
             ticker_puro = t_sa.replace(".SA", "")
+            
+            # Cálculo de Volume Financeiro Real (Preço x Quantidade)
+            df['Vol_Financeiro'] = df['Fechamento'] * df['Quantidade']
             
             df['MM20'] = df['Fechamento'].rolling(window=20).mean()
             df['MM50'] = df['Fechamento'].rolling(window=50).mean()
@@ -122,9 +118,10 @@ def varrer_mercado_ao_vivo():
             df['MM100_10d'] = df['MM100'].shift(10)
             df['MM150_10d'] = df['MM150'].shift(10)
             
-            df['QtdMedia_20d'] = df['Quantidade'].rolling(window=20).mean()
-            df['QtdMedia_60d'] = df['Quantidade'].rolling(window=60).mean()
-            df['QtdMedia_100d'] = df['Quantidade'].rolling(window=100).mean()
+            # Médias de Liquidez baseadas em Reais (R$)
+            df['VolFin_Media_20d'] = df['Vol_Financeiro'].rolling(window=20).mean()
+            df['VolFin_Media_60d'] = df['Vol_Financeiro'].rolling(window=60).mean()
+            df['VolFin_Media_100d'] = df['Vol_Financeiro'].rolling(window=100).mean()
             
             df['IFR40'] = calcular_ifr(df['Fechamento'], periodos=40)
             df['IFR3'] = calcular_ifr(df['Fechamento'], periodos=3)
@@ -151,9 +148,14 @@ def varrer_mercado_ao_vivo():
             df_passado = df[df.index <= data_12m_atras]
             retorno_12m = (preco_atual / df_passado.iloc[-1]['Fechamento']) - 1 if not df_passado.empty else 0
             
+            # Correção do Retorno YTD: Busca o fechamento de Dezembro do ano anterior
             ano_atual = data_atual.year
-            df_ano_atual = df[df.index.year == ano_atual]
-            retorno_ano = (preco_atual / df_ano_atual.iloc[0]['Fechamento']) - 1 if not df_ano_atual.empty else 0
+            df_anos_anteriores = df[df.index.year < ano_atual]
+            if not df_anos_anteriores.empty:
+                fechamento_dezembro = df_anos_anteriores.iloc[-1]['Fechamento']
+                retorno_ano = (preco_atual / fechamento_dezembro) - 1
+            else:
+                retorno_ano = 0
             
             fr_ibov = ((1 + retorno_12m) / (1 + retorno_12m_ibov)) - 1 if retorno_12m_ibov != -1 else 0
             fr_ivvb = ((1 + retorno_12m) / (1 + retorno_12m_ivvb)) - 1 if retorno_12m_ivvb != -1 else 0
@@ -168,8 +170,8 @@ def varrer_mercado_ao_vivo():
                 'MM100': hoje['MM100'], 'MM150': hoje['MM150'], 
                 'MM20_10d': hoje['MM20_10d'], 'MM50_10d': hoje['MM50_10d'], 'MM80_10d': hoje['MM80_10d'], 
                 'MM100_10d': hoje['MM100_10d'], 'MM150_10d': hoje['MM150_10d'], 
-                'Qtd_Acoes': hoje['Quantidade'], 'QtdMedia_20d': hoje['QtdMedia_20d'], 
-                'QtdMedia_60d': hoje['QtdMedia_60d'], 'QtdMedia_100d': hoje['QtdMedia_100d']
+                'Vol_Financeiro': hoje['Vol_Financeiro'], 'VolFin_Media_20d': hoje['VolFin_Media_20d'], 
+                'VolFin_Media_60d': hoje['VolFin_Media_60d'], 'VolFin_Media_100d': hoje['VolFin_Media_100d']
             })
         except Exception as e:
             pass
@@ -297,14 +299,14 @@ with st.sidebar.expander("🏆 Filtros de Performance"):
     fr_ivvb_minimo = st.number_input("FR_IVVB Mínimo (%)", value=-100.0, step=5.0)
     retorno_12m_minimo = st.number_input("Retorno 12M Mínimo (%)", value=-100.0, step=10.0)
 
-with st.sidebar.expander("💰 Filtros de Liquidez"):
-    filtro_qtd_hoje = st.number_input("Qtd. de Ações Hoje (Mínimo)", value=10000, step=10000)
-    filtro_qtdmm20 = st.number_input("Qtd. Média 20d (Mínimo)", value=0, step=10000)
-    volume_crescente = st.checkbox("Liquidez Crescente (Qtd. 20d > Qtd. 60d)", value=False)
+with st.sidebar.expander("💰 Filtros de Liquidez (Volume R$)"):
+    filtro_volfin_hoje = st.number_input("Vol. Financeiro Hoje (Mínimo)", value=500000.0, step=500000.0)
+    filtro_volfin_mm20 = st.number_input("Vol. Fin. Médio 20d (Mínimo)", value=1000000.0, step=500000.0)
+    volume_crescente = st.checkbox("Liquidez Crescente (Vol. 20d > Vol. 60d)", value=False)
 
 st.sidebar.markdown("---")
 ordenar_por = st.sidebar.selectbox("Ordenar Resultados por:", 
-    ["FR_IBOV", "Retorno_12M", "IFR40", "MACD_Linha_10_3", "Qtd_Acoes"])
+    ["FR_IBOV", "Retorno_12M", "IFR40", "MACD_Linha_10_3", "Vol_Financeiro"])
 
 # ==========================================
 # 4. EXECUÇÃO E APRESENTAÇÃO
@@ -317,10 +319,11 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
     else:
         t = tabela_completa.copy()
 
+        # Filtragem com base em Volume Financeiro (Dinheiro) em vez de Quantidade
         t = t[
             (t['Fechamento'] >= preco_minimo) &
-            (t['Qtd_Acoes'] >= filtro_qtd_hoje) & 
-            (t['QtdMedia_20d'] >= filtro_qtdmm20) &
+            (t['Vol_Financeiro'] >= filtro_volfin_hoje) & 
+            (t['VolFin_Media_20d'] >= filtro_volfin_mm20) &
             (t['Retorno_12M'] >= (retorno_12m_minimo / 100)) &
             (t['FR_IBOV'] >= (fr_ibov_minimo / 100)) &
             (t['FR_IVVB'] >= (fr_ivvb_minimo / 100))
@@ -378,7 +381,7 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
             
             if rompimento_52w: t = t[t['Fechamento'] <= (t['Min_52W'] * 1.05)]
 
-        if volume_crescente: t = t[t['QtdMedia_20d'] > t['QtdMedia_60d']]
+        if volume_crescente: t = t[t['VolFin_Media_20d'] > t['VolFin_Media_60d']]
 
         t = t.sort_values(by=ordenar_por, ascending=False).reset_index(drop=True)
 
@@ -387,7 +390,7 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
             'Retorno_Ano', 'Retorno_12M', 'FR_IBOV', 'FR_IVVB', 
             'IFR3', 'IFR40', 'Estocastico_Lento', 'MACD_Linha_10_3', 'MACD_Media_36', 
             'MM20', 'MM50', 'MM80', 'MM100', 'MM150', 
-            'Qtd_Acoes', 'QtdMedia_20d', 'QtdMedia_60d', 'QtdMedia_100d'
+            'Vol_Financeiro', 'VolFin_Media_20d', 'VolFin_Media_60d', 'VolFin_Media_100d'
         ]
         t = t[ordem_colunas] 
 
@@ -403,8 +406,9 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
         colunas_2dec = ['IFR3', 'IFR40', 'Estocastico_Lento']
         for col in colunas_2dec: t[col] = t[col].apply(lambda x: f"{x:.2f}")
 
-        colunas_int = ['Qtd_Acoes', 'QtdMedia_20d', 'QtdMedia_60d', 'QtdMedia_100d']
-        for col in colunas_int: t[col] = t[col].apply(lambda x: f"{x:,.0f}".replace(',', '.'))
+        # Formatação para números grandes de Volume Financeiro (ex: 1.500.000)
+        colunas_vol = ['Vol_Financeiro', 'VolFin_Media_20d', 'VolFin_Media_60d', 'VolFin_Media_100d']
+        for col in colunas_vol: t[col] = t[col].apply(lambda x: f"R$ {x:,.0f}".replace(',', '.'))
 
         st.success(f"Sincronizado! {len(t)} ações passaram nos filtros.")
         st.dataframe(t, use_container_width=True, height=750)
