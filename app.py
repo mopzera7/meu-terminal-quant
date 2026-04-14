@@ -86,15 +86,24 @@ def varrer_mercado_ao_vivo():
 
     for t_sa in tickers_sa:
         try:
+            # 1. Cria o DataFrame e já aplica o float32 nas colunas de preço para salvar RAM
             df = pd.DataFrame({
-                'Fechamento': dados_brutos['Close'][t_sa],
-                'Máximo': dados_brutos['High'][t_sa],
-                'Mínimo': dados_brutos['Low'][t_sa],
-                'Quantidade': dados_brutos['Volume'][t_sa]
+                'Fechamento': dados_brutos['Close'][t_sa].astype('float32'),
+                'Máximo': dados_brutos['High'][t_sa].astype('float32'),
+                'Mínimo': dados_brutos['Low'][t_sa].astype('float32'),
+                'Quantidade': dados_brutos['Volume'][t_sa] # Quantidade fica normal pois são números grandes
             })
             
+            # 2. Preenche os dados vazios dos preços usando o último dia útil
             df[['Fechamento', 'Máximo', 'Mínimo']] = df[['Fechamento', 'Máximo', 'Mínimo']].ffill()
+            
+            # 3. Tratamento do "Erro de Segunda-Feira" (Volume Zerado)
+            # Preenche primeiro com o volume anterior em vez de forçar zero imediatamente
+            df['Quantidade'] = df['Quantidade'].ffill() 
+            # Caso os primeiros dias do histórico sejam vazios, aí sim aplica o zero
             df['Quantidade'] = df['Quantidade'].fillna(0)
+            
+            # Remove qualquer linha que tenha ficado inválida
             df = df.dropna()
 
             if len(df) < 252: continue 
