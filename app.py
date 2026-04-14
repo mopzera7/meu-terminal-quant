@@ -86,7 +86,6 @@ def varrer_mercado_ao_vivo():
 
     for t_sa in tickers_sa:
         try:
-            # 1. Cria o DataFrame e aplica float32
             df = pd.DataFrame({
                 'Fechamento': dados_brutos['Close'][t_sa].astype('float32'),
                 'Máximo': dados_brutos['High'][t_sa].astype('float32'),
@@ -103,8 +102,9 @@ def varrer_mercado_ao_vivo():
         
             ticker_puro = t_sa.replace(".SA", "")
             
-            # Cálculo de Volume Financeiro Real (Preço x Quantidade)
-            df['Vol_Financeiro'] = df['Fechamento'] * df['Quantidade']
+            # Cálculo de Volume Financeiro Real com Preço Típico (Proxy VWAP)
+            df['Preco_Tipico'] = (df['Máximo'] + df['Mínimo'] + df['Fechamento']) / 3
+            df['Vol_Financeiro'] = df['Preco_Tipico'] * df['Quantidade']
             
             df['MM20'] = df['Fechamento'].rolling(window=20).mean()
             df['MM50'] = df['Fechamento'].rolling(window=50).mean()
@@ -118,7 +118,6 @@ def varrer_mercado_ao_vivo():
             df['MM100_10d'] = df['MM100'].shift(10)
             df['MM150_10d'] = df['MM150'].shift(10)
             
-            # Médias de Liquidez baseadas em Reais (R$)
             df['VolFin_Media_20d'] = df['Vol_Financeiro'].rolling(window=20).mean()
             df['VolFin_Media_60d'] = df['Vol_Financeiro'].rolling(window=60).mean()
             df['VolFin_Media_100d'] = df['Vol_Financeiro'].rolling(window=100).mean()
@@ -148,7 +147,6 @@ def varrer_mercado_ao_vivo():
             df_passado = df[df.index <= data_12m_atras]
             retorno_12m = (preco_atual / df_passado.iloc[-1]['Fechamento']) - 1 if not df_passado.empty else 0
             
-            # Correção do Retorno YTD: Busca o fechamento de Dezembro do ano anterior
             ano_atual = data_atual.year
             df_anos_anteriores = df[df.index.year < ano_atual]
             if not df_anos_anteriores.empty:
@@ -319,7 +317,6 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
     else:
         t = tabela_completa.copy()
 
-        # Filtragem com base em Volume Financeiro (Dinheiro) em vez de Quantidade
         t = t[
             (t['Fechamento'] >= preco_minimo) &
             (t['Vol_Financeiro'] >= filtro_volfin_hoje) & 
@@ -406,7 +403,6 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
         colunas_2dec = ['IFR3', 'IFR40', 'Estocastico_Lento']
         for col in colunas_2dec: t[col] = t[col].apply(lambda x: f"{x:.2f}")
 
-        # Formatação para números grandes de Volume Financeiro (ex: 1.500.000)
         colunas_vol = ['Vol_Financeiro', 'VolFin_Media_20d', 'VolFin_Media_60d', 'VolFin_Media_100d']
         for col in colunas_vol: t[col] = t[col].apply(lambda x: f"R$ {x:,.0f}".replace(',', '.'))
 
