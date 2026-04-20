@@ -192,6 +192,7 @@ st.markdown("""
                min-width: 320px !important;
                max-width: 320px !important;
            }
+           div[data-testid="stCheckbox"] label p { font-size: 12px !important; color: #777 !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -257,16 +258,16 @@ if st.session_state["sb_user"] is None:
             except Exception:
                 st.error("❌ Email ou senha incorretos.")
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("🔑 Esqueceu sua senha?"):
-            _reset_email = st.text_input("Digite seu email cadastrado:", key="reset_email")
-            if st.button("📧 Enviar link de redefinição", use_container_width=True, key="btn_reset"):
+        _mostrar_reset = st.checkbox("Esqueceu sua senha?", key="mostrar_reset")
+        if _mostrar_reset:
+            _reset_email = st.text_input("Email cadastrado:", key="reset_email", placeholder="seu@email.com")
+            if st.button("Enviar link de redefinição", use_container_width=True, key="btn_reset", type="secondary"):
                 if not _reset_email:
                     st.warning("Digite seu email.")
                 else:
                     try:
                         _supabase.auth.reset_password_for_email(_reset_email)
-                        st.success("✅ Email de redefinição enviado! Verifique sua caixa de entrada.")
+                        st.success("✅ Link enviado! Verifique sua caixa de entrada.")
                     except Exception:
                         st.success("✅ Se esse email estiver cadastrado, você receberá as instruções.")
 
