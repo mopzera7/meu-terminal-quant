@@ -20,7 +20,7 @@ def calcular_ifr(series, periodos):
 # ==========================================
 # 2. MOTOR QUANTITATIVO (NUVEM)
 # ==========================================
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl="1d")
 def varrer_mercado_ao_vivo():
     tickers = [
         "A1MD34", "AALR3", "AAPL34", "ABBV34", "ABCB4", "ABEV3", "ABTT34", "ADBE34", "AERI3", "AGRO3",
