@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
+from supabase import create_client
+import streamlit.components.v1 as components
 
 # ==========================================
 # 1. FUNÇÕES MATEMÁTICAS
@@ -195,30 +197,93 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 🔐 SISTEMA DE LOGIN
+# 🔗 BRIDGE: converte #fragment → ?query_param
 # ==========================================
-if 'autenticado' not in st.session_state:
-    st.session_state['autenticado'] = False
+components.html("""
+<script>
+(function() {
+    try {
+        var pl = window.parent.location;
+        var hash = pl.hash;
+        if (hash && hash.indexOf('access_token') !== -1) {
+            var params = new URLSearchParams(hash.substring(1));
+            var at = params.get('access_token') || '';
+            var rt = params.get('refresh_token') || '';
+            var tp = params.get('type') || '';
+            if (at && pl.search.indexOf('access_token') === -1) {
+                pl.replace(
+                    pl.pathname +
+                    '?access_token=' + encodeURIComponent(at) +
+                    '&refresh_token=' + encodeURIComponent(rt) +
+                    '&type=' + encodeURIComponent(tp)
+                );
+            }
+        }
+    } catch(e) { console.warn('Bridge:', e); }
+})();
+</script>
+""", height=0)
 
-if not st.session_state['autenticado']:
-    st.markdown("<br><br><br>", unsafe_allow_html=True) 
-    col1, col2, col3 = st.columns([1, 1, 1]) 
-    
+# ==========================================
+# 🔐 SISTEMA DE LOGIN — Supabase Auth
+# ==========================================
+_supabase = create_client(
+    st.secrets["supabase"]["url"],
+    st.secrets["supabase"]["key"],
+)
+
+if "sb_user" not in st.session_state:
+    st.session_state["sb_user"] = None
+
+# ── Tela de criação/redefinição de senha (via link de convite ou recovery) ──
+_qp = st.query_params
+if "access_token" in _qp:
+    _at = _qp["access_token"]
+    _rt = _qp.get("refresh_token", "")
+    _tp = _qp.get("type", "")
+
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    _c1, _c2, _c3 = st.columns([1, 1, 1])
+    with _c2:
+        st.markdown("<h2 style='text-align: center;'>🔑 Criar Senha de Acesso</h2>", unsafe_allow_html=True)
+        _nova = st.text_input("Nova Senha", type="password")
+        _conf = st.text_input("Confirmar Senha", type="password")
+        if st.button("✅ Salvar Senha e Entrar", type="primary", use_container_width=True):
+            if not _nova:
+                st.error("Digite uma senha.")
+            elif _nova != _conf:
+                st.error("As senhas não coincidem.")
+            elif len(_nova) < 6:
+                st.error("A senha deve ter pelo menos 6 caracteres.")
+            else:
+                try:
+                    _supabase.auth.set_session(_at, _rt)
+                    _supabase.auth.update_user({"password": _nova})
+                    st.success("✅ Senha definida! Fazendo login...")
+                    st.query_params.clear()
+                    st.rerun()
+                except Exception as _ex:
+                    st.error(f"Erro ao salvar senha: {_ex}")
+    st.stop()
+
+if st.session_state["sb_user"] is None:
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1, 1])
+
     with col2:
         st.markdown("<h2 style='text-align: center;'>🔐 Acesso Restrito</h2>", unsafe_allow_html=True)
-        usuario = st.text_input("Usuário")
+        email = st.text_input("Email")
         senha = st.text_input("Senha", type="password")
         btn_login = st.button("Entrar no Terminal", type="primary", use_container_width=True)
-        
-        usuarios_permitidos = st.secrets["senhas"]
-        
+
         if btn_login:
-            if usuario in usuarios_permitidos and usuarios_permitidos[usuario] == senha: 
-                st.session_state['autenticado'] = True
-                st.rerun() 
-            else:
-                st.error("❌ Usuário ou senha incorretos.")
-                
+            try:
+                resp = _supabase.auth.sign_in_with_password({"email": email, "password": senha})
+                st.session_state["sb_user"] = resp.user
+                st.rerun()
+            except Exception:
+                st.error("❌ Email ou senha incorretos.")
+
     st.stop()
 
 # ==========================================
@@ -232,6 +297,15 @@ if btn_varredura:
 
 st.markdown("---")
 st.sidebar.header("🎛️ Painel de Controle")
+
+_email_usuario = st.session_state["sb_user"].email if st.session_state.get("sb_user") else ""
+st.sidebar.caption(f"👤 {_email_usuario}")
+if st.sidebar.button("🚪 Sair", use_container_width=True):
+    _supabase.auth.sign_out()
+    st.session_state["sb_user"] = None
+    st.rerun()
+
+st.sidebar.markdown("---")
 
 with st.sidebar.expander("📈 Filtros de Tendência", expanded=True):
     preco_minimo = st.number_input("Preço Mínimo (R$)", value=2.00, step=0.50)
@@ -303,8 +377,44 @@ with st.sidebar.expander("💰 Filtros de Liquidez (Volume R$)"):
     volume_crescente = st.checkbox("Liquidez Crescente (Vol. 20d > Vol. 60d)", value=False)
 
 st.sidebar.markdown("---")
-ordenar_por = st.sidebar.selectbox("Ordenar Resultados por:", 
+ordenar_por = st.sidebar.selectbox("Ordenar Resultados por:",
     ["FR_IBOV", "Retorno_12M", "IFR40", "MACD_Linha_10_3", "Vol_Financeiro"])
+
+# ==========================================
+# PAINEL ADMIN (visível apenas para admins)
+# ==========================================
+_admins = list(st.secrets.get("admin", {}).get("emails", []))
+if _email_usuario in _admins:
+    st.sidebar.markdown("---")
+    with st.sidebar.expander("⚙️ Admin — Gerenciar Usuários", expanded=False):
+        _admin_client = create_client(
+            st.secrets["supabase"]["url"],
+            st.secrets["supabase"]["service_role_key"],
+        )
+
+        # Lista de usuários
+        try:
+            _users = _admin_client.auth.admin.list_users()
+            if _users:
+                st.markdown("**Usuários cadastrados:**")
+                for _u in _users:
+                    st.caption(f"• {_u.email}")
+        except Exception as _e:
+            st.error(f"Erro ao listar usuários: {_e}")
+
+        st.markdown("---")
+
+        # Convidar novo usuário
+        _novo_email = st.text_input("Email para convidar:", key="admin_invite_email")
+        if st.button("📧 Enviar Convite", use_container_width=True, key="admin_invite_btn"):
+            if _novo_email:
+                try:
+                    _admin_client.auth.admin.invite_user_by_email(_novo_email)
+                    st.success(f"✅ Convite enviado para {_novo_email}")
+                except Exception as _e:
+                    st.error(f"Erro: {_e}")
+            else:
+                st.warning("Digite um email válido.")
 
 # ==========================================
 # 4. EXECUÇÃO E APRESENTAÇÃO
@@ -408,3 +518,21 @@ with st.spinner("Analisando o mercado e aplicando os filtros em tempo real..."):
 
         st.success(f"Sincronizado! {len(t)} ações passaram nos filtros.")
         st.dataframe(t, use_container_width=True, height=750)
+
+        col_csv, col_txt = st.columns(2)
+        with col_csv:
+            st.download_button(
+                label="📊 Baixar Relatório Completo (CSV)",
+                data=t.to_csv(index=False, encoding="utf-8"),
+                file_name="relatorio_b3.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with col_txt:
+            st.download_button(
+                label="🎯 Exportar para Profit Pro (TXT)",
+                data="\n".join(t["Ticker"].tolist()),
+                file_name="profit_pro.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
