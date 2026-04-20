@@ -174,16 +174,18 @@ def varrer_mercado_ao_vivo():
                 'VolFin_Media_60d': hoje['VolFin_Media_60d'], 'VolFin_Media_100d': hoje['VolFin_Media_100d']
             })
         except Exception as e:
-            # Se der erro num ticker (ex: sem liquidez ou deslistado), ignora e vai para o próximo
+            # Se der erro num ticker, ignora e vai para o próximo
             pass
             
-        finally:
-            # LIMPEZA DE MEMÓRIA (Evita o site cair no plano gratuito)
-            gc.collect() 
+        # ❌ APAGUE O BLOCO "finally:" E O "gc.collect()" QUE ESTAVAM AQUI!
 
-    # Fora do loop, cria o dataframe final com a lista correta
+    # Fora do loop (depois que as 400 ações já foram calculadas em velocidade máxima)
     if lista_rastreador:
         df_final = pd.DataFrame(lista_rastreador)
+        
+        # ✅ COLOQUE A LIMPEZA DE MEMÓRIA AQUI (Apenas 1 vez no final!)
+        gc.collect() 
+        
         return df_final
     else:
         return pd.DataFrame()
