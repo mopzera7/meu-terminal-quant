@@ -3,3 +3,4 @@ pandas
 numpy
 yfinance
 plotly
+supabase==2.10.0
