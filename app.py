@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
+import gc
 from supabase import create_client
 
 # ==========================================
@@ -19,7 +20,7 @@ def calcular_ifr(series, periodos):
 # ==========================================
 # 2. MOTOR QUANTITATIVO (NUVEM)
 # ==========================================
-@st.cache_data(ttl="1d")
+@st.cache_data(ttl=3600, show_spinner=False)
 def varrer_mercado_ao_vivo():
     tickers = [
         "A1MD34", "AALR3", "AAPL34", "ABBV34", "ABCB4", "ABEV3", "ABTT34", "ADBE34", "AERI3", "AGRO3",
@@ -173,9 +174,19 @@ def varrer_mercado_ao_vivo():
                 'VolFin_Media_60d': hoje['VolFin_Media_60d'], 'VolFin_Media_100d': hoje['VolFin_Media_100d']
             })
         except Exception as e:
+            # Se der erro num ticker (ex: sem liquidez ou deslistado), ignora e vai para o próximo
             pass
             
-    return pd.DataFrame(lista_rastreador)
+        finally:
+            # LIMPEZA DE MEMÓRIA (Evita o site cair no plano gratuito)
+            gc.collect() 
+
+    # Fora do loop, cria o dataframe final com a lista correta
+    if lista_rastreador:
+        df_final = pd.DataFrame(lista_rastreador)
+        return df_final
+    else:
+        return pd.DataFrame()
 
 # ==========================================
 # 3. INTERFACE DE USUÁRIO E FILTROS
