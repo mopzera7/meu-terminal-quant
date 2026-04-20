@@ -210,8 +210,12 @@ if "sb_user" not in st.session_state:
 # ── Tela de criação de senha (via link de convite com token_hash) ──
 _qp = st.query_params
 if "token_hash" in _qp:
-    _th = _qp["token_hash"]
-    _tp = _qp.get("type", "invite")
+    st.session_state["_th"] = _qp["token_hash"]
+    st.session_state["_tp"] = _qp.get("type", "invite")
+
+if st.session_state.get("_th") and st.session_state["sb_user"] is None:
+    _th = st.session_state["_th"]
+    _tp = st.session_state["_tp"]
 
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _c1, _c2, _c3 = st.columns([1, 1, 1])
@@ -233,6 +237,8 @@ if "token_hash" in _qp:
                     _verify = _supabase.auth.verify_otp({"token_hash": _th, "type": _tp})
                     _supabase.auth.update_user({"password": _nova})
                     st.session_state["sb_user"] = _verify.user
+                    st.session_state.pop("_th", None)
+                    st.session_state.pop("_tp", None)
                     st.query_params.clear()
                     st.rerun()
                 except Exception:
