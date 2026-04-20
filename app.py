@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from supabase import create_client
-import streamlit.components.v1 as components
 
 # ==========================================
 # 1. FUNÇÕES MATEMÁTICAS
@@ -197,34 +196,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 🔗 BRIDGE: converte #fragment → ?query_param
-# ==========================================
-components.html("""
-<script>
-(function() {
-    try {
-        var pl = window.parent.location;
-        var hash = pl.hash;
-        if (hash && hash.indexOf('access_token') !== -1) {
-            var params = new URLSearchParams(hash.substring(1));
-            var at = params.get('access_token') || '';
-            var rt = params.get('refresh_token') || '';
-            var tp = params.get('type') || '';
-            if (at && pl.search.indexOf('access_token') === -1) {
-                pl.replace(
-                    pl.pathname +
-                    '?access_token=' + encodeURIComponent(at) +
-                    '&refresh_token=' + encodeURIComponent(rt) +
-                    '&type=' + encodeURIComponent(tp)
-                );
-            }
-        }
-    } catch(e) { console.warn('Bridge:', e); }
-})();
-</script>
-""", height=0)
-
-# ==========================================
 # 🔐 SISTEMA DE LOGIN — Supabase Auth
 # ==========================================
 _supabase = create_client(
@@ -235,20 +206,21 @@ _supabase = create_client(
 if "sb_user" not in st.session_state:
     st.session_state["sb_user"] = None
 
-# ── Tela de criação/redefinição de senha (via link de convite ou recovery) ──
+# ── Tela de criação de senha (via link de convite com token_hash) ──
 _qp = st.query_params
-if "access_token" in _qp:
-    _at = _qp["access_token"]
-    _rt = _qp.get("refresh_token", "")
-    _tp = _qp.get("type", "")
+if "token_hash" in _qp:
+    _th = _qp["token_hash"]
+    _tp = _qp.get("type", "invite")
 
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _c1, _c2, _c3 = st.columns([1, 1, 1])
     with _c2:
-        st.markdown("<h2 style='text-align: center;'>🔑 Criar Senha de Acesso</h2>", unsafe_allow_html=True)
+        _titulo = "🔁 Redefinir Senha" if _tp == "recovery" else "🔑 Criar Senha de Acesso"
+        _btn_label = "✅ Salvar Nova Senha e Entrar" if _tp == "recovery" else "✅ Salvar Senha e Entrar"
+        st.markdown(f"<h2 style='text-align: center;'>{_titulo}</h2>", unsafe_allow_html=True)
         _nova = st.text_input("Nova Senha", type="password")
         _conf = st.text_input("Confirmar Senha", type="password")
-        if st.button("✅ Salvar Senha e Entrar", type="primary", use_container_width=True):
+        if st.button(_btn_label, type="primary", use_container_width=True):
             if not _nova:
                 st.error("Digite uma senha.")
             elif _nova != _conf:
@@ -257,13 +229,14 @@ if "access_token" in _qp:
                 st.error("A senha deve ter pelo menos 6 caracteres.")
             else:
                 try:
-                    _supabase.auth.set_session(_at, _rt)
+                    _verify = _supabase.auth.verify_otp({"token_hash": _th, "type": _tp})
                     _supabase.auth.update_user({"password": _nova})
-                    st.success("✅ Senha definida! Fazendo login...")
+                    st.session_state["sb_user"] = _verify.user
                     st.query_params.clear()
                     st.rerun()
-                except Exception as _ex:
-                    st.error(f"Erro ao salvar senha: {_ex}")
+                except Exception:
+                    _msg = "Link inválido ou expirado. Solicite uma nova redefinição." if _tp == "recovery" else "Link inválido ou expirado. Solicite um novo convite."
+                    st.error(_msg)
     st.stop()
 
 if st.session_state["sb_user"] is None:
@@ -283,6 +256,19 @@ if st.session_state["sb_user"] is None:
                 st.rerun()
             except Exception:
                 st.error("❌ Email ou senha incorretos.")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander("🔑 Esqueceu sua senha?"):
+            _reset_email = st.text_input("Digite seu email cadastrado:", key="reset_email")
+            if st.button("📧 Enviar link de redefinição", use_container_width=True, key="btn_reset"):
+                if not _reset_email:
+                    st.warning("Digite seu email.")
+                else:
+                    try:
+                        _supabase.auth.reset_password_for_email(_reset_email)
+                        st.success("✅ Email de redefinição enviado! Verifique sua caixa de entrada.")
+                    except Exception:
+                        st.success("✅ Se esse email estiver cadastrado, você receberá as instruções.")
 
     st.stop()
 
